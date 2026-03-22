@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { getRoom, connectSocket, getSocket } from '../services';
-import VoiceChat from '../components/VoiceChat';
 
 export default function RoomPage() {
   const { code } = useParams();
@@ -132,15 +131,6 @@ export default function RoomPage() {
 
           {/* Right: Voice + Chat */}
           <div style={{ display:'flex', flexDirection:'column', gap:14, height:'100%' }}>
-            {/* Voice Chat */}
-            <div className="card" style={{ flexShrink:0, border:'1px solid rgba(46,204,113,.2)' }}>
-              <VoiceChat
-                roomCode={code?.toUpperCase()}
-                userId={user?._id}
-                username={user?.username}
-              />
-            </div>
-
             {/* Chat */}
             <div className="card" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
               <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:12, flexShrink:0 }}>💬 Chat</h3>
