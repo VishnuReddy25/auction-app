@@ -6,6 +6,7 @@ import SoundEngine from '../services/SoundEngine';
 import Confetti    from '../components/Confetti';
 import AnimatedBg  from '../components/AnimatedBg';
 import NewsPanel   from '../components/NewsPanel';
+import AnalyticsPanel from '../components/AnalyticsPanel';
 
 const fmtL = v => { if (!v && v !== 0) return '—'; if (v >= 100) return `₹${(v/100).toFixed(1)}Cr`; return `₹${v}L`; };
 const roleColor = { Batsman:'#f5c842', Bowler:'#3b82f6', 'All-Rounder':'#2ecc71', 'Wicket-Keeper':'#e05a2b' };
@@ -284,10 +285,26 @@ function Leaderboard({ leaderboard, state, onStats, onLobby }) {
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:700, fontSize:15 }}>{e.username}</div>
                 <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>{e.teamCount} players · Spent {fmtL(e.spent)}</div>
+                {e.scores && (
+                  <div style={{ display:'flex', gap:6, marginTop:4, flexWrap:'wrap' }}>
+                    {[['⚔️',e.scores.strength,'#f5c842'],['💎',e.scores.efficiency,'#2ecc71'],['⚖️',e.scores.balance,'#3b82f6'],['⚡',e.scores.clutch,'#e05a2b']].map(([icon,val,col])=>(
+                      <span key={icon} style={{ fontSize:11, color:col, fontWeight:600 }}>{icon}{val}</span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div style={{ textAlign:'right' }}>
-                <div style={{ fontFamily:'var(--font-m)', color:'var(--gold)', fontWeight:700, fontSize:16 }}>{fmtL(e.budget)}</div>
-                <div style={{ fontSize:11, color:'var(--text3)' }}>remaining</div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                {e.scores ? (
+                  <>
+                    <div style={{ fontFamily:'var(--font-d)', color:'var(--gold)', fontWeight:700, fontSize:26, lineHeight:1 }}>{e.scores.final}</div>
+                    <div style={{ fontSize:11, color:'var(--text3)' }}>final score</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontFamily:'var(--font-m)', color:'var(--gold)', fontWeight:700, fontSize:16 }}>{fmtL(e.budget)}</div>
+                    <div style={{ fontSize:11, color:'var(--text3)' }}>remaining</div>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -324,7 +341,8 @@ export default function AuctionPage() {
   const [isNewItem,   setIsNewItem]   = useState(false);
   const [soundOn,     setSoundOn]     = useState(true);
   const [news,        setNews]        = useState([]);
-  const [rightTab,    setRightTab]    = useState('chat'); // 'chat' | 'news'
+  const [rightTab,    setRightTab]    = useState('chat');
+  const [bidAnalytics,setBidAnalytics]= useState(null); // hint + clutch from server
 
   const chatRef     = useRef(null);
   const bidCount    = useRef(0);
@@ -353,11 +371,12 @@ export default function AuctionPage() {
       const item = st.items?.[0];
       setNews(n => [...n, makeNews('start', `🏏 Auction started!`, `First up: ${item?.name} (Base: ${fmtL(item?.basePrice)})`)]);
     });
-    s.on('bid:new', ({ state:st, timerReset }) => {
+    s.on('bid:new', ({ state:st, timerReset, analytics }) => {
       const prev = stateRef.current?.currentBidderId;
       setState(st); setBidErr(''); setSuggestion(null);
       sound(()=>SoundEngine.bid());
       if (timerReset) setTimer(timerReset);
+      if (analytics) setBidAnalytics(analytics);
       if (prev===myId && st.currentBidderId!==myId) { setOutbid(true); sound(()=>SoundEngine.outbid()); setTimeout(()=>setOutbid(false),3000); }
       bidCount.current++;
       clearTimeout(bidWarTimer.current);
@@ -525,6 +544,12 @@ export default function AuctionPage() {
           {!isHost && state?.phase==='bidding' && !paused && (
             <div className="card" style={{ border:'1px solid var(--border2)' }}>
               <BidPanel state={state} myId={myId} onBid={placeBid} onSuggest={getSugg} suggestion={suggestion} error={bidErr} />
+            </div>
+          )}
+          {/* Live Analytics — shows below bid controls for non-host */}
+          {!isHost && state?.phase==='bidding' && !paused && (
+            <div className="card" style={{ border:'1px solid rgba(59,130,246,.2)' }}>
+              <AnalyticsPanel state={state} myId={myId} bidAnalytics={bidAnalytics} />
             </div>
           )}
           {isHost && state?.phase==='bidding' && !paused && (

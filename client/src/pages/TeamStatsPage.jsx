@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAchievements } from '../services/achievements';
+import ScoreBreakdown from '../components/ScoreBreakdown';
 
 const fmtL = v => {
   if (!v && v !== 0) return '—';
@@ -101,8 +102,17 @@ export default function TeamStatsPage() {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontFamily: 'var(--font-m)', color: 'var(--gold)', fontWeight: 700 }}>{fmtL(entry.budget)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>remaining</div>
+                  {entry.scores ? (
+                    <>
+                      <div style={{ fontFamily:'var(--font-d)', color:'var(--gold)', fontWeight:700, fontSize:28, lineHeight:1 }}>{entry.scores.final}</div>
+                      <div style={{ fontSize:11, color:'var(--text3)' }}>final score</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontFamily: 'var(--font-m)', color: 'var(--gold)', fontWeight: 700 }}>{fmtL(entry.budget)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>remaining</div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -123,6 +133,14 @@ export default function TeamStatsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Score breakdown */}
+              {selected.scores && (
+                <>
+                  <h3 style={s.sectionTitle}>🏆 Score Breakdown</h3>
+                  <ScoreBreakdown scores={selected.scores} username={selected.username} />
+                </>
+              )}
 
               {/* Achievements */}
               {(() => {
