@@ -5,9 +5,15 @@ import { connectSocket, getSocket } from '../services';
 import SoundEngine from '../services/SoundEngine';
 import Confetti    from '../components/Confetti';
 import AnimatedBg  from '../components/AnimatedBg';
+import NewsPanel   from '../components/NewsPanel';
 
 const fmtL = v => { if (!v && v !== 0) return '—'; if (v >= 100) return `₹${(v/100).toFixed(1)}Cr`; return `₹${v}L`; };
 const roleColor = { Batsman:'#f5c842', Bowler:'#3b82f6', 'All-Rounder':'#2ecc71', 'Wicket-Keeper':'#e05a2b' };
+
+let newsIdCounter = 0;
+function makeNews(type, headline, detail = '', extra = {}) {
+  return { id: ++newsIdCounter, type, headline, detail, ts: Date.now(), ...extra };
+}
 
 // ── Going Once/Twice text ─────────────────────────────────────────────────────
 function GavelText({ left }) {
@@ -317,6 +323,8 @@ export default function AuctionPage() {
   const [confetti,    setConfetti]    = useState(false);
   const [isNewItem,   setIsNewItem]   = useState(false);
   const [soundOn,     setSoundOn]     = useState(true);
+  const [news,        setNews]        = useState([]);
+  const [rightTab,    setRightTab]    = useState('chat'); // 'chat' | 'news'
 
   const chatRef     = useRef(null);
   const bidCount    = useRef(0);
@@ -337,7 +345,14 @@ export default function AuctionPage() {
     });
     s.on('room:joined',     ({ state:st }) => { setState(st); setTimerTotal(st.settings?.timerSeconds||30); setJoined(true); });
     s.on('room:updated',    ({ state:st }) => setState(st));
-    s.on('auction:started', ({ state:st }) => { setState(st); setResult(null); setPaused(false); setTimerTotal(st.settings?.timerSeconds||30); setIsNewItem(true); setTimeout(()=>setIsNewItem(false),800); sound(()=>SoundEngine.start()); });
+    s.on('auction:started', ({ state:st }) => {
+      setState(st); setResult(null); setPaused(false);
+      setTimerTotal(st.settings?.timerSeconds||30);
+      setIsNewItem(true); setTimeout(()=>setIsNewItem(false),800);
+      sound(()=>SoundEngine.start());
+      const item = st.items?.[0];
+      setNews(n => [...n, makeNews('start', `🏏 Auction started!`, `First up: ${item?.name} (Base: ${fmtL(item?.basePrice)})`)]);
+    });
     s.on('bid:new', ({ state:st }) => {
       const prev = stateRef.current?.currentBidderId;
       setState(st); setBidErr(''); setSuggestion(null);
@@ -347,14 +362,42 @@ export default function AuctionPage() {
       clearTimeout(bidWarTimer.current);
       if (bidCount.current >= 3) { setBidWar(true); sound(()=>SoundEngine.bidWar()); bidWarTimer.current=setTimeout(()=>{setBidWar(false);bidCount.current=0;},4000); }
       else { bidWarTimer.current=setTimeout(()=>{bidCount.current=0;},8000); }
+      // Add bid news
+      const item = st.items?.[st.currentIndex];
+      setNews(n => [...n, makeNews('bid', `${st.currentBidderName} bids ${fmtL(st.currentBid)}`, `on ${item?.name}`)]);
     });
     s.on('timer', ({ left }) => { setTimer(left); if ([10,5,3].includes(left)) sound(()=>SoundEngine.tick()); });
     s.on('round:closed', ({ result:r, state:st }) => {
       setState(st); setResult(r); setPaused(false); setBidWar(false); bidCount.current=0;
-      if (r.type==='sold') { sound(()=>SoundEngine.sold()); if (r.winner===user?.username) { setConfetti(true); sound(()=>SoundEngine.win()); setTimeout(()=>setConfetti(false),4000); } }
-      else sound(()=>SoundEngine.unsold());
+      if (r.type==='sold') {
+        sound(()=>SoundEngine.sold());
+        setNews(n => [...n, makeNews('sold',
+          `🔨 ${r.item?.name} SOLD to ${r.winner}`,
+          `${r.bids} bid${r.bids!==1?'s':''} · Final price: ${fmtL(r.price)}`,
+          { price: fmtL(r.price) }
+        )]);
+        if (r.winner===user?.username) { setConfetti(true); sound(()=>SoundEngine.win()); setTimeout(()=>setConfetti(false),4000); }
+        // Auto switch to news tab on sold
+        setRightTab('news');
+      } else {
+        sound(()=>SoundEngine.unsold());
+        setNews(n => [...n, makeNews('unsold',
+          `❌ ${r.item?.name} goes UNSOLD`,
+          'No bids were placed for this player'
+        )]);
+      }
     });
-    s.on('item:next', ({ state:st }) => { setState(st); setResult(null); setPaused(false); setTimer(st.settings?.timerSeconds||30); setIsNewItem(true); setTimeout(()=>setIsNewItem(false),800); sound(()=>SoundEngine.next()); });
+    s.on('item:next', ({ state:st }) => {
+      setState(st); setResult(null); setPaused(false);
+      setTimer(st.settings?.timerSeconds||30);
+      setIsNewItem(true); setTimeout(()=>setIsNewItem(false),800);
+      sound(()=>SoundEngine.next());
+      const item = st.items?.[st.currentIndex];
+      setNews(n => [...n, makeNews('next',
+        `➡️ Now bidding: ${item?.name}`,
+        `${item?.role} · ${item?.team} · Base: ${fmtL(item?.basePrice)}`
+      )]);
+    });
     s.on('auction:paused',   ()          => setPaused(true));
     s.on('auction:resumed',  ({state:st})=> { setState(st); setPaused(false); });
     s.on('auction:complete', ({leaderboard:lb}) => { setLeaderboard(lb); setResult(null); setConfetti(true); sound(()=>SoundEngine.win()); setTimeout(()=>setConfetti(false),5000); });
@@ -503,31 +546,55 @@ export default function AuctionPage() {
           )}
         </main>
 
-        {/* Chat */}
+        {/* Right: Chat + News tabs */}
         <aside style={{ overflow:'hidden' }}>
           <div className="card" style={{ height:'100%', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
-            <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:12, flexShrink:0 }}>💬 Chat</h3>
-            <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingRight:4 }}>
-              {chat.length===0 && <p style={{ color:'var(--text3)',fontSize:12,textAlign:'center',padding:'20px 0' }}>Chat is quiet…</p>}
-              {chat.map((m,i)=>{
-                const isMe2=m.username===user?.username;
-                const isSys=m.type==='system'||m.type==='bid';
-                return (
-                  <div key={i} style={{ display:'flex',flexDirection:isMe2?'row-reverse':'row',gap:6,alignItems:'flex-end',marginBottom:6 }}>
-                    {!isSys&&!isMe2&&<div style={{ width:24,height:24,borderRadius:'50%',background:'var(--surface2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0 }}>{m.username?.[0]?.toUpperCase()}</div>}
-                    <div style={{ maxWidth:'78%',padding:isSys?'3px 10px':'8px 12px',borderRadius:10,background:isSys?'transparent':isMe2?'var(--gold-dim)':'var(--surface2)',border:isMe2?'1px solid rgba(245,200,66,.25)':'none',...(isSys?{textAlign:'center',width:'100%',maxWidth:'100%'}:{}) }}>
-                      {!isSys&&!isMe2&&<div style={{ fontSize:10,color:'var(--gold)',fontWeight:700,marginBottom:2 }}>{m.username}</div>}
-                      <div style={{ fontSize:13,lineHeight:1.4,color:isSys?(m.type==='bid'?'var(--green)':'var(--text3)'):undefined,fontStyle:isSys?'italic':undefined }}>{m.message}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={chatRef} />
+            {/* Tab switcher */}
+            <div style={{ display:'flex', background:'var(--bg3)', borderRadius:8, padding:3, marginBottom:12, gap:3, flexShrink:0 }}>
+              {[['chat','💬 Chat'],['news','📰 News']].map(([id,label]) => (
+                <button key={id}
+                  onClick={() => setRightTab(id)}
+                  style={{ flex:1, padding:'7px 0', border:'none', background:rightTab===id?'var(--surface2)':'transparent', color:rightTab===id?'var(--text)':'var(--text2)', cursor:'pointer', borderRadius:6, fontSize:13, fontWeight:600, fontFamily:'var(--font-b)', transition:'all 150ms', position:'relative' }}>
+                  {label}
+                  {id==='news' && news.length > 0 && (
+                    <span style={{ position:'absolute', top:2, right:6, width:8, height:8, borderRadius:'50%', background:'var(--red)', boxShadow:'0 0 6px var(--red)' }} />
+                  )}
+                </button>
+              ))}
             </div>
-            <form onSubmit={sendChat} style={{ display:'flex',gap:8,paddingTop:10,borderTop:'1px solid var(--border)',flexShrink:0 }}>
-              <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Say something…" maxLength={300} className="input" style={{ fontSize:13 }} />
-              <button type="submit" disabled={!msg.trim()} className="btn btn-outline btn-sm">↑</button>
-            </form>
+
+            {/* Chat tab */}
+            {rightTab === 'chat' && (
+              <>
+                <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingRight:4 }}>
+                  {chat.filter(m => m.type === 'user').length === 0 && (
+                    <p style={{ color:'var(--text3)',fontSize:12,textAlign:'center',padding:'20px 0' }}>Chat is quiet… say something!</p>
+                  )}
+                  {chat.filter(m => m.type === 'user').map((m,i) => {
+                    const isMe2 = m.username === user?.username;
+                    return (
+                      <div key={i} style={{ display:'flex', flexDirection:isMe2?'row-reverse':'row', gap:6, alignItems:'flex-end', marginBottom:6 }}>
+                        {!isMe2 && <div style={{ width:24,height:24,borderRadius:'50%',background:'var(--surface2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0 }}>{m.username?.[0]?.toUpperCase()}</div>}
+                        <div style={{ maxWidth:'78%',padding:'8px 12px',borderRadius:10,background:isMe2?'var(--gold-dim)':'var(--surface2)',border:isMe2?'1px solid rgba(245,200,66,.25)':'none' }}>
+                          {!isMe2 && <div style={{ fontSize:10,color:'var(--gold)',fontWeight:700,marginBottom:2 }}>{m.username}</div>}
+                          <div style={{ fontSize:13, lineHeight:1.4 }}>{m.message}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatRef} />
+                </div>
+                <form onSubmit={sendChat} style={{ display:'flex',gap:8,paddingTop:10,borderTop:'1px solid var(--border)',flexShrink:0 }}>
+                  <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Say something…" maxLength={300} className="input" style={{ fontSize:13 }} />
+                  <button type="submit" disabled={!msg.trim()} className="btn btn-outline btn-sm">↑</button>
+                </form>
+              </>
+            )}
+
+            {/* News tab */}
+            {rightTab === 'news' && (
+              <NewsPanel news={news} />
+            )}
           </div>
         </aside>
       </div>
