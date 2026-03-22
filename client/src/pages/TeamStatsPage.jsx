@@ -28,6 +28,7 @@ export default function TeamStatsPage() {
   const nav        = useNavigate();
   const leaderboard = state?.leaderboard || [];
   const settings    = state?.settings   || {};
+  const roomCode    = state?.roomCode   || '';
   const [selected,  setSelected] = useState(leaderboard[0] || null);
 
   if (!leaderboard.length) {
@@ -265,9 +266,12 @@ export default function TeamStatsPage() {
               </div>
 
               {/* Back button */}
-              <button onClick={() => nav('/')} className="btn btn-gold btn-full btn-lg" style={{ marginTop: 16 }}>
-                🏠 Back to Lobby
-              </button>
+              <div style={{ display:"flex", gap:10, marginTop:16, flexDirection:"column" }}>
+                {roomCode && (
+                  <button onClick={() => nav(`/replay/${roomCode}`)} className="btn btn-outline btn-full">🎬 Watch Auction Replay</button>
+                )}
+                <button onClick={() => nav("/")} className="btn btn-gold btn-full btn-lg">🏠 Back to Lobby</button>
+              </div>
             </div>
           )}
         </div>

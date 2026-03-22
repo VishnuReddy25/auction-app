@@ -628,7 +628,7 @@ export default function AuctionPage() {
       </div>
 
       {result     && <ResultOverlay result={result} isHost={isHost} onNext={hostNext} />}
-      {leaderboard && <Leaderboard leaderboard={leaderboard} state={state} onStats={()=>nav('/stats',{state:{leaderboard,settings:state?.settings}})} onLobby={()=>nav('/')} />}
+      {leaderboard && <Leaderboard leaderboard={leaderboard} state={state} onStats={()=>nav('/stats',{state:{leaderboard,settings:state?.settings,roomCode:code}})} onLobby={()=>nav('/')} />}
     </div>
   );
 }

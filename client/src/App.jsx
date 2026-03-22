@@ -6,6 +6,7 @@ import LobbyPage      from './pages/LobbyPage';
 import RoomPage       from './pages/RoomPage';
 import AuctionPage    from './pages/AuctionPage';
 import TeamStatsPage  from './pages/TeamStatsPage';
+import ReplayPage     from './pages/ReplayPage';
 
 // ── Auth Context ─────────────────────────────────────────────────────────────
 const AuthCtx = createContext(null);
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/room/:code"    element={<Guard><RoomPage /></Guard>} />
           <Route path="/auction/:code" element={<Guard><AuctionPage /></Guard>} />
           <Route path="/stats"         element={<Guard><TeamStatsPage /></Guard>} />
+          <Route path="/replay/:code"  element={<Guard><ReplayPage /></Guard>} />
           <Route path="*"              element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
