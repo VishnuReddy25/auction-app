@@ -1,0 +1,65 @@
+:root {
+  --bg:      #0a0a0f;
+  --bg2:     #12121a;
+  --bg3:     #1a1a26;
+  --surface: #1e1e2e;
+  --surface2:#252538;
+  --border:  rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --gold:    #f5c842;
+  --gold2:   #e8a020;
+  --gold-dim:rgba(245,200,66,0.15);
+  --gold-glow:0 0 20px rgba(245,200,66,0.4);
+  --accent:  #e05a2b;
+  --green:   #2ecc71;
+  --red:     #e74c3c;
+  --blue:    #3b82f6;
+  --text:    #f0f0f5;
+  --text2:   #9898b0;
+  --text3:   #5a5a75;
+  --font-d:  'Bebas Neue',sans-serif;
+  --font-b:  'DM Sans',sans-serif;
+  --font-m:  'DM Mono',monospace;
+  --r:       8px;
+  --rl:      14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
+h1,h2,h3,h4{font-family:var(--font-d);letter-spacing:.03em;line-height:1.1}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:var(--r);border:none;cursor:pointer;font-family:var(--font-b);font-size:14px;font-weight:600;transition:all 150ms;text-decoration:none;white-space:nowrap}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-gold{background:var(--gold);color:#0a0a0f}
+.btn-gold:hover:not(:disabled){background:#ffd94d;box-shadow:var(--gold-glow);transform:translateY(-1px)}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold)}
+.btn-outline:hover:not(:disabled){background:var(--gold-dim)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover:not(:disabled){background:var(--surface2);color:var(--text)}
+.btn-red{background:var(--red);color:#fff}
+.btn-red:hover:not(:disabled){background:#c0392b;transform:translateY(-1px)}
+.btn-green{background:var(--green);color:#0a0a0f}
+.btn-green:hover:not(:disabled){background:#27ae60;transform:translateY(-1px)}
+.btn-sm{padding:6px 14px;font-size:13px}
+.btn-lg{padding:14px 28px;font-size:16px}
+.btn-full{width:100%}
+
+.input{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-b);font-size:15px;padding:10px 14px;width:100%;transition:border-color 150ms;outline:none}
+.input:focus{border-color:var(--gold)}
+.input::placeholder{color:var(--text3)}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes popIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes bidFlash{0%{background:rgba(245,200,66,.3)}100%{background:transparent}}
+
+.fade-in{animation:fadeIn .3s ease forwards}
+.pop-in{animation:popIn .35s cubic-bezier(.34,1.56,.64,1) forwards}
+.pulse{animation:pulse 1.2s ease-in-out infinite}
+.spin{animation:spin .8s linear infinite}
