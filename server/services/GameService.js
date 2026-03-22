@@ -27,7 +27,10 @@ const GameService = {
       budget: settings.startingBudget,
     }));
 
-    const state = Engine.createState({ roomId: roomCode, players, items: PLAYERS, settings });
+    // Shuffle players so order is random every auction
+    const shuffled = [...PLAYERS].sort(() => Math.random() - 0.5);
+
+    const state = Engine.createState({ roomId: roomCode, players, items: shuffled, settings });
     Store.set(roomCode, state);
 
     // Generate hidden values for all players
