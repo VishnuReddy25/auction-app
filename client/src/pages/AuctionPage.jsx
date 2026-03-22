@@ -7,7 +7,7 @@ import Confetti    from '../components/Confetti';
 import AnimatedBg  from '../components/AnimatedBg';
 import NewsPanel      from '../components/NewsPanel';
 import AnalyticsPanel from '../components/AnalyticsPanel';
-import VoiceChat      from '../components/VoiceChat';
+import VideoChat      from '../components/VideoChat';
 
 const fmtL = v => { if (!v && v !== 0) return '—'; if (v >= 100) return `₹${(v/100).toFixed(1)}Cr`; return `₹${v}L`; };
 const roleColor = { Batsman:'#f5c842', Bowler:'#3b82f6', 'All-Rounder':'#2ecc71', 'Wicket-Keeper':'#e05a2b' };
@@ -343,6 +343,7 @@ export default function AuctionPage() {
   const [soundOn,     setSoundOn]     = useState(true);
   const [news,        setNews]        = useState([]);
   const [rightTab,    setRightTab]    = useState('chat');
+  const [leftTab,     setLeftTab]     = useState('teams');
   const [bidAnalytics,setBidAnalytics]= useState(null); // hint + clutch from server
 
   const chatRef     = useRef(null);
@@ -397,7 +398,7 @@ export default function AuctionPage() {
           `${r.bids} bid${r.bids!==1?'s':''} · Final price: ${fmtL(r.price)}`,
           { price: fmtL(r.price) }
         )]);
-        if (r.winner===user?.username) { setConfetti(true); sound(()=>SoundEngine.win()); setTimeout(()=>setConfetti(false),4000); }
+        if (r.winner===user?.username) { setConfetti(true); sound(()=>SoundEngine.win()); setTimeout(()=>setConfetti(false),4000); setLeftTab("squad"); }
         // Auto switch to news tab on sold
         setRightTab('news');
       } else {
@@ -477,31 +478,105 @@ export default function AuctionPage() {
       </header>
 
       <div style={as.main}>
-        {/* Teams */}
+        {/* Left: Teams + My Squad tabs */}
         <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column' }}>
-          <div className="card" style={{ flex:1, overflow:'auto', position:'relative', zIndex:1, minHeight:0 }}>
-            <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:14 }}>Teams</h3>
-            {bidders.map(p => {
-              const pct=( p.budget/(state?.settings?.startingBudget||1000))*100;
-              const lead=p.id===state?.currentBidderId;
-              const isMe2=p.id===myId;
-              return (
-                <div key={p.id} style={{ display:'flex', gap:10, alignItems:'center', padding:'9px 10px', borderRadius:10, background:lead?'rgba(245,200,66,.05)':'var(--bg3)', border:`1px solid ${lead?'rgba(245,200,66,.4)':isMe2?'rgba(59,130,246,.3)':'var(--border)'}`, marginBottom:8, position:'relative', transition:'all 200ms' }}>
-                  {lead && <div className="pulse" style={{ position:'absolute', left:-4, top:'50%', transform:'translateY(-50%)', width:8, height:8, borderRadius:'50%', background:'var(--gold)', boxShadow:'0 0 10px var(--gold)' }} />}
-                  <div style={{ width:34,height:34,borderRadius:'50%',background:lead?'var(--gold-dim)':'var(--surface2)',color:lead?'var(--gold)':'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0,border:lead?'1px solid var(--gold)':'none' }}>{p.username[0].toUpperCase()}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <span style={{ fontWeight:600, fontSize:13 }}>{p.username}{isMe2&&<span style={{ fontSize:10,color:'var(--blue)',marginLeft:5,background:'rgba(59,130,246,.2)',padding:'1px 5px',borderRadius:3 }}>you</span>}</span>
-                      {lead&&<span style={{ fontSize:10,color:'var(--gold)',fontWeight:700,letterSpacing:'.05em' }}>LEADING</span>}
+          <div className="card" style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden', minHeight:0 }}>
+
+            {/* Tab switcher */}
+            <div style={{ display:'flex', background:'var(--bg3)', borderRadius:8, padding:3, marginBottom:12, gap:3, flexShrink:0 }}>
+              {[['teams','👥 Teams'],['squad','🏏 My Squad']].map(([id,label]) => (
+                <button key={id} onClick={() => setLeftTab(id)}
+                  style={{ flex:1, padding:'7px 0', border:'none', background:leftTab===id?'var(--surface2)':'transparent', color:leftTab===id?'var(--text)':'var(--text2)', cursor:'pointer', borderRadius:6, fontSize:12, fontWeight:600, fontFamily:'var(--font-b)', transition:'all 150ms', position:'relative' }}>
+                  {label}
+                  {id==='squad' && me?.team?.length > 0 && (
+                    <span style={{ position:'absolute', top:2, right:4, fontSize:10, background:'var(--gold)', color:'#000', borderRadius:100, padding:'0px 5px', fontWeight:700 }}>{me.team.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Teams tab */}
+            {leftTab === 'teams' && (
+              <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
+                {bidders.map(p => {
+                  const pct  = (p.budget/(state?.settings?.startingBudget||1000))*100;
+                  const lead = p.id===state?.currentBidderId;
+                  const isMe2= p.id===myId;
+                  return (
+                    <div key={p.id} style={{ display:'flex', gap:10, alignItems:'center', padding:'9px 10px', borderRadius:10, background:lead?'rgba(245,200,66,.05)':'var(--bg3)', border:`1px solid ${lead?'rgba(245,200,66,.4)':isMe2?'rgba(59,130,246,.3)':'var(--border)'}`, marginBottom:8, position:'relative', transition:'all 200ms' }}>
+                      {lead && <div className="pulse" style={{ position:'absolute', left:-4, top:'50%', transform:'translateY(-50%)', width:8, height:8, borderRadius:'50%', background:'var(--gold)', boxShadow:'0 0 10px var(--gold)' }} />}
+                      <div style={{ width:34,height:34,borderRadius:'50%',background:lead?'var(--gold-dim)':'var(--surface2)',color:lead?'var(--gold)':'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0,border:lead?'1px solid var(--gold)':'none' }}>{p.username[0].toUpperCase()}</div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <span style={{ fontWeight:600, fontSize:13 }}>{p.username}{isMe2&&<span style={{ fontSize:10,color:'var(--blue)',marginLeft:5,background:'rgba(59,130,246,.2)',padding:'1px 5px',borderRadius:3 }}>you</span>}</span>
+                          {lead&&<span style={{ fontSize:10,color:'var(--gold)',fontWeight:700,letterSpacing:'.05em' }}>LEADING</span>}
+                        </div>
+                        <div style={{ fontSize:11,color:'var(--text2)',marginTop:1 }}>{fmtL(p.budget)} · {p.team?.length||0} 🏏</div>
+                        <div style={{ height:3,background:'var(--border2)',borderRadius:2,marginTop:5,overflow:'hidden' }}>
+                          <div style={{ height:'100%',borderRadius:2,transition:'width .5s',background:pct>50?'var(--green)':pct>25?'var(--gold)':'var(--red)',width:`${pct}%` }} />
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize:11,color:'var(--text2)',marginTop:1 }}>{fmtL(p.budget)} · {p.team?.length||0} 🏏</div>
-                    <div style={{ height:3,background:'var(--border2)',borderRadius:2,marginTop:5,overflow:'hidden' }}>
-                      <div style={{ height:'100%',borderRadius:2,transition:'width .5s',background:pct>50?'var(--green)':pct>25?'var(--gold)':'var(--red)',width:`${pct}%` }} />
-                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* My Squad tab */}
+            {leftTab === 'squad' && (
+              <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
+                {!me?.team?.length ? (
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'30px 0', gap:10, color:'var(--text3)' }}>
+                    <span style={{ fontSize:36 }}>🏏</span>
+                    <p style={{ fontSize:13, textAlign:'center' }}>No players yet.<br/>Win a bid to build your squad!</p>
                   </div>
-                </div>
-              );
-            })}
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {/* Budget summary */}
+                    <div style={{ display:'flex', justifyContent:'space-between', padding:'8px 10px', background:'var(--bg3)', borderRadius:8, marginBottom:4 }}>
+                      <div style={{ fontSize:12, color:'var(--text2)' }}>
+                        <span style={{ color:'var(--gold)', fontWeight:700 }}>{me.team.length}</span> players
+                      </div>
+                      <div style={{ fontSize:12, color:'var(--text2)' }}>
+                        Spent <span style={{ color:'var(--red)', fontWeight:700 }}>{fmtL((state?.settings?.startingBudget||1000) - me.budget)}</span>
+                      </div>
+                      <div style={{ fontSize:12, color:'var(--text2)' }}>
+                        Left <span style={{ color:'var(--green)', fontWeight:700 }}>{fmtL(me.budget)}</span>
+                      </div>
+                    </div>
+
+                    {/* Player cards */}
+                    {me.team.map((player, i) => {
+                      const rc = roleColor[player.role] || '#9898b0';
+                      const isBargin = player.boughtFor <= player.basePrice;
+                      return (
+                        <div key={i} style={{ padding:'10px 12px', borderRadius:10, background:'var(--bg3)', border:`1px solid ${rc}30`, position:'relative', overflow:'hidden' }}>
+                          <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at 0% 50%, ${rc}10, transparent 60%)`, pointerEvents:'none' }} />
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            {/* Avatar */}
+                            <div style={{ width:34, height:34, borderRadius:8, background:`${rc}20`, color:rc, border:`1px solid ${rc}40`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, flexShrink:0 }}>
+                              {player.image || player.name?.[0]}
+                            </div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontWeight:700, fontSize:13, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{player.name}</div>
+                              <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                                <span style={{ fontSize:10, padding:'1px 6px', borderRadius:100, background:`${rc}20`, color:rc, fontWeight:700 }}>{player.role}</span>
+                                <span style={{ fontSize:10, color:'var(--text3)' }}>{player.team}</span>
+                              </div>
+                            </div>
+                            <div style={{ textAlign:'right', flexShrink:0 }}>
+                              <div style={{ fontFamily:'var(--font-d)', fontSize:16, color:'var(--gold)', lineHeight:1 }}>{fmtL(player.boughtFor)}</div>
+                              <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>base {fmtL(player.basePrice)}</div>
+                              {isBargin && <div style={{ fontSize:9, color:'var(--green)', fontWeight:700, marginTop:2 }}>💎 BARGAIN</div>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -577,7 +652,7 @@ export default function AuctionPage() {
         <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column', gap:10 }}>
           {/* Voice Chat */}
           <div className="card" style={{ flexShrink:0, border:'1px solid rgba(46,204,113,.2)' }}>
-            <VoiceChat
+            <VideoChat
               roomCode={code?.toUpperCase()}
               userId={user?._id}
               username={user?.username}
