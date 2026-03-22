@@ -278,7 +278,7 @@ const ov = {
 };
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
-function Leaderboard({ leaderboard, onClose }) {
+function Leaderboard({ leaderboard, state, onClose, onLobby }) {
   const medals = ['🥇','🥈','🥉'];
   return (
     <div style={ov.backdrop}>
@@ -303,8 +303,13 @@ function Leaderboard({ leaderboard, onClose }) {
             </div>
           ))}
         </div>
-        <div style={{ padding:'16px 16px 24px' }}>
-          <button onClick={onClose} className="btn btn-gold btn-full btn-lg">Back to Lobby</button>
+        <div style={{ padding:'16px 16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+          <button onClick={onClose} className="btn btn-gold btn-full btn-lg">
+            📊 View Full Team Stats
+          </button>
+          <button onClick={onLobby} className="btn btn-ghost btn-full">
+            🏠 Back to Lobby
+          </button>
         </div>
       </div>
     </div>
@@ -559,7 +564,7 @@ export default function AuctionPage() {
 
       {/* Overlays */}
       {result && <ResultOverlay result={result} isHost={isHost} onNext={hostNext} />}
-      {leaderboard && <Leaderboard leaderboard={leaderboard} onClose={() => nav('/')} />}
+      {leaderboard && <Leaderboard leaderboard={leaderboard} state={state} onClose={() => nav('/stats', { state: { leaderboard, settings: state?.settings } })} onLobby={() => nav('/')} />}
     </div>
   );
 }
