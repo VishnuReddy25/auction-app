@@ -458,8 +458,8 @@ export default function AuctionPage() {
 
       <div style={as.main}>
         {/* Teams */}
-        <aside style={{ overflow:'hidden', minHeight:0 }}>
-          <div className="card" style={{ height:'100%', overflow:'auto', position:'relative', zIndex:1 }}>
+        <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column' }}>
+          <div className="card" style={{ flex:1, overflow:'auto', position:'relative', zIndex:1, minHeight:0 }}>
             <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:14 }}>Teams</h3>
             {bidders.map(p => {
               const pct=( p.budget/(state?.settings?.startingBudget||1000))*100;
@@ -486,7 +486,7 @@ export default function AuctionPage() {
         </aside>
 
         {/* Center */}
-        <main style={{ display:'flex', flexDirection:'column', gap:12, overflow:'auto', position:'relative', zIndex:1 }}>
+        <main style={{ display:'flex', flexDirection:'column', gap:12, overflow:'auto', position:'relative', zIndex:1, minHeight:0, maxHeight:'100%' }}>
           {paused && <div style={{ padding:'10px 16px', borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text2)', textAlign:'center', fontSize:14 }}>⏸ Auction paused by host</div>}
           {state?.phase==='bidding' && !paused && <div style={{ padding:'10px 16px', borderRadius:10, background:'rgba(231,76,60,.08)', border:'1px solid rgba(231,76,60,.25)', color:'#ff7875', fontSize:14, fontWeight:600, textAlign:'center' }}>🔴 LIVE — Everyone can bid! Highest bid wins when timer ends!</div>}
           <OutbidAlert show={outbid} />
@@ -548,8 +548,8 @@ export default function AuctionPage() {
         </main>
 
         {/* Right: Chat + News tabs */}
-        <aside style={{ overflow:'hidden', minHeight:0 }}>
-          <div className="card" style={{ height:'100%', display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden' }}>
+        <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column' }}>
+          <div className="card" style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden', minHeight:0 }}>
             {/* Tab switcher */}
             <div style={{ display:'flex', background:'var(--bg3)', borderRadius:8, padding:3, marginBottom:12, gap:3, flexShrink:0 }}>
               {[['chat','💬 Chat'],['news','📰 News']].map(([id,label]) => (
@@ -610,6 +610,6 @@ export default function AuctionPage() {
 
 const as = {
   page:   { minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' },
-  header: { position:'relative', zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 20px', borderBottom:'1px solid var(--border)', background:'rgba(10,10,15,.92)', backdropFilter:'blur(16px)', gap:16 },
-  main:   { position:'relative', zIndex:1, display:'grid', gridTemplateColumns:'240px 1fr 280px', gap:14, flex:1, padding:14, height:'calc(100vh - 57px)', overflow:'hidden', minHeight:0 },
+  header: { position:'relative', zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 20px', borderBottom:'1px solid var(--border)', background:'rgba(10,10,15,.92)', backdropFilter:'blur(16px)', gap:16, flexShrink:0 },
+  main:   { position:'relative', zIndex:1, display:'grid', gridTemplateColumns:'240px 1fr 280px', gridTemplateRows:'1fr', alignItems:'stretch', gap:14, padding:14, height:'calc(100vh - 57px)', maxHeight:'calc(100vh - 57px)', overflow:'hidden' },
 };
