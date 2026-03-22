@@ -635,7 +635,6 @@ export default function AuctionPage() {
               </div>
             )}
           </div>
-          </div>
         </aside>
       </div>
 
