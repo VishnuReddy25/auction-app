@@ -483,15 +483,22 @@ export default function AuctionPage() {
 
             {/* Tab switcher */}
             <div style={{ display:'flex', background:'var(--bg3)', borderRadius:8, padding:3, marginBottom:12, gap:3, flexShrink:0 }}>
-              {[['teams','👥 Teams'],['squad','🏏 My Squad']].map(([id,label]) => (
-                <button key={id} onClick={() => setLeftTab(id)}
-                  style={{ flex:1, padding:'7px 0', border:'none', background:leftTab===id?'var(--surface2)':'transparent', color:leftTab===id?'var(--text)':'var(--text2)', cursor:'pointer', borderRadius:6, fontSize:12, fontWeight:600, fontFamily:'var(--font-b)', transition:'all 150ms', position:'relative' }}>
-                  {label}
-                  {id==='squad' && me?.team?.length > 0 && (
-                    <span style={{ position:'absolute', top:2, right:4, fontSize:10, background:'var(--gold)', color:'#000', borderRadius:100, padding:'0px 5px', fontWeight:700 }}>{me.team.length}</span>
-                  )}
-                </button>
-              ))}
+              {[['teams','👥'],['squad','🏏'],['players','📋']].map(([id,label]) => {
+                const pending = state?.items?.filter(i=>i.status==='pending').length || 0;
+                return (
+                  <button key={id} onClick={() => setLeftTab(id)}
+                    style={{ flex:1, padding:'7px 0', border:'none', background:leftTab===id?'var(--surface2)':'transparent', color:leftTab===id?'var(--text)':'var(--text2)', cursor:'pointer', borderRadius:6, fontSize:13, fontWeight:600, fontFamily:'var(--font-b)', transition:'all 150ms', position:'relative' }}
+                    title={id==='teams'?'Teams':id==='squad'?'My Squad':'Players List'}>
+                    {label}
+                    {id==='squad' && me?.team?.length > 0 && (
+                      <span style={{ position:'absolute', top:2, right:2, fontSize:9, background:'var(--gold)', color:'#000', borderRadius:100, padding:'0 4px', fontWeight:700 }}>{me.team.length}</span>
+                    )}
+                    {id==='players' && (
+                      <span style={{ position:'absolute', top:2, right:2, fontSize:9, background:'var(--surface2)', color:'var(--text3)', borderRadius:100, padding:'0 4px' }}>{pending}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Teams tab */}
@@ -574,6 +581,68 @@ export default function AuctionPage() {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Players tab */}
+            {leftTab === 'players' && (
+              <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
+                {(() => {
+                  const all     = state?.items || [];
+                  const pending = all.filter(i => i.status === 'pending');
+                  const sold    = all.filter(i => i.status === 'sold');
+                  const unsold  = all.filter(i => i.status === 'unsold');
+                  const current = all[state?.currentIndex];
+                  return (
+                    <>
+                      <div style={{ display:'flex', gap:6, marginBottom:10 }}>
+                        {[
+                          [pending.length, 'Remaining', 'var(--text)'],
+                          [sold.length,    'Sold',      'var(--gold)'],
+                          [unsold.length,  'Unsold',    'var(--text3)'],
+                        ].map(([val, label, color]) => (
+                          <div key={label} style={{ flex:1, textAlign:'center', padding:'6px 4px', background:'var(--bg3)', borderRadius:8 }}>
+                            <div style={{ fontFamily:'var(--font-d)', fontSize:18, color, lineHeight:1 }}>{val}</div>
+                            <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {current && state?.phase === 'bidding' && (
+                        <div style={{ padding:'8px 10px', borderRadius:8, background:'rgba(245,200,66,.08)', border:'1px solid rgba(245,200,66,.3)', marginBottom:8 }}>
+                          <div style={{ fontSize:10, color:'var(--gold)', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>🔴 Now Bidding</div>
+                          <div style={{ fontWeight:700, fontSize:13 }}>{current.name}</div>
+                          <div style={{ fontSize:11, color:'var(--text2)' }}>{current.role} · {current.team}</div>
+                        </div>
+                      )}
+                      {all.map((item, i) => {
+                        const rc        = roleColor[item.role] || '#9898b0';
+                        const isCurrent = i === state?.currentIndex;
+                        const isSold    = item.status === 'sold';
+                        const isUnsold  = item.status === 'unsold';
+                        return (
+                          <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8, marginBottom:5, transition:'all 200ms', background:isCurrent?'rgba(245,200,66,.07)':isSold?'rgba(46,204,113,.04)':'var(--bg3)', border:`1px solid ${isCurrent?'rgba(245,200,66,.4)':isSold?'rgba(46,204,113,.2)':'var(--border)'}`, opacity:isUnsold?0.5:1 }}>
+                            <span style={{ fontSize:12, flexShrink:0, width:16 }}>{isCurrent?'🔴':isSold?'✅':isUnsold?'❌':'⏳'}</span>
+                            <div style={{ width:26, height:26, borderRadius:6, background:`${rc}20`, color:rc, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:10, flexShrink:0 }}>{item.image||item.name?.[0]}</div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', color:isCurrent?'var(--gold)':'var(--text)' }}>{item.name}</div>
+                              <div style={{ fontSize:10, color:'var(--text3)' }}>{item.role}</div>
+                            </div>
+                            <div style={{ textAlign:'right', flexShrink:0 }}>
+                              {isSold ? (
+                                <>
+                                  <div style={{ fontSize:11, fontFamily:'var(--font-m)', color:'var(--green)', fontWeight:700 }}>{fmtL(item.soldFor)}</div>
+                                  <div style={{ fontSize:9, color:'var(--text3)', maxWidth:55, overflow:'hidden', textOverflow:'ellipsis' }}>{item.soldTo}</div>
+                                </>
+                              ) : (
+                                <div style={{ fontSize:11, color:'var(--text3)' }}>{fmtL(item.basePrice)}</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -714,3 +783,4 @@ const as = {
   header: { position:'relative', zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 20px', borderBottom:'1px solid var(--border)', background:'rgba(10,10,15,.92)', backdropFilter:'blur(16px)', gap:16, flexShrink:0 },
   main:   { position:'relative', zIndex:1, display:'grid', gridTemplateColumns:'240px 1fr 280px', gridTemplateRows:'1fr', alignItems:'stretch', gap:14, padding:14, height:'calc(100vh - 57px)', maxHeight:'calc(100vh - 57px)', overflow:'hidden' },
 };
+  
