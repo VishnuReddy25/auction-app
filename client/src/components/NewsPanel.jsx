@@ -87,7 +87,7 @@ export default function NewsPanel({ news }) {
 }
 
 const s = {
-  wrap:       { display: 'flex', flexDirection: 'column', height: '100%' },
+  wrap:       { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' },
   header:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 },
   title:      { fontFamily: 'var(--font-d)', fontSize: 20, letterSpacing: '.03em' },
   count:      { fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: 100 },

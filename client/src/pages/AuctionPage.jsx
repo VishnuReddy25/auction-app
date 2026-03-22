@@ -353,10 +353,11 @@ export default function AuctionPage() {
       const item = st.items?.[0];
       setNews(n => [...n, makeNews('start', `🏏 Auction started!`, `First up: ${item?.name} (Base: ${fmtL(item?.basePrice)})`)]);
     });
-    s.on('bid:new', ({ state:st }) => {
+    s.on('bid:new', ({ state:st, timerReset }) => {
       const prev = stateRef.current?.currentBidderId;
       setState(st); setBidErr(''); setSuggestion(null);
       sound(()=>SoundEngine.bid());
+      if (timerReset) setTimer(timerReset);
       if (prev===myId && st.currentBidderId!==myId) { setOutbid(true); sound(()=>SoundEngine.outbid()); setTimeout(()=>setOutbid(false),3000); }
       bidCount.current++;
       clearTimeout(bidWarTimer.current);
@@ -457,7 +458,7 @@ export default function AuctionPage() {
 
       <div style={as.main}>
         {/* Teams */}
-        <aside style={{ overflow:'hidden' }}>
+        <aside style={{ overflow:'hidden', minHeight:0 }}>
           <div className="card" style={{ height:'100%', overflow:'auto', position:'relative', zIndex:1 }}>
             <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:14 }}>Teams</h3>
             {bidders.map(p => {
@@ -547,8 +548,8 @@ export default function AuctionPage() {
         </main>
 
         {/* Right: Chat + News tabs */}
-        <aside style={{ overflow:'hidden' }}>
-          <div className="card" style={{ height:'100%', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
+        <aside style={{ overflow:'hidden', minHeight:0 }}>
+          <div className="card" style={{ height:'100%', display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden' }}>
             {/* Tab switcher */}
             <div style={{ display:'flex', background:'var(--bg3)', borderRadius:8, padding:3, marginBottom:12, gap:3, flexShrink:0 }}>
               {[['chat','💬 Chat'],['news','📰 News']].map(([id,label]) => (
@@ -563,9 +564,9 @@ export default function AuctionPage() {
               ))}
             </div>
 
-            {/* Chat tab */}
+            {/* Chat tab — fixed height, internal scroll */}
             {rightTab === 'chat' && (
-              <>
+              <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
                 <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingRight:4 }}>
                   {chat.filter(m => m.type === 'user').length === 0 && (
                     <p style={{ color:'var(--text3)',fontSize:12,textAlign:'center',padding:'20px 0' }}>Chat is quiet… say something!</p>
@@ -584,16 +585,18 @@ export default function AuctionPage() {
                   })}
                   <div ref={chatRef} />
                 </div>
-                <form onSubmit={sendChat} style={{ display:'flex',gap:8,paddingTop:10,borderTop:'1px solid var(--border)',flexShrink:0 }}>
+                <form onSubmit={sendChat} style={{ display:'flex',gap:8,paddingTop:10,borderTop:'1px solid var(--border)',flexShrink:0,marginTop:'auto' }}>
                   <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Say something…" maxLength={300} className="input" style={{ fontSize:13 }} />
                   <button type="submit" disabled={!msg.trim()} className="btn btn-outline btn-sm">↑</button>
                 </form>
-              </>
+              </div>
             )}
 
-            {/* News tab */}
+            {/* News tab — fixed height, internal scroll */}
             {rightTab === 'news' && (
-              <NewsPanel news={news} />
+              <div style={{ flex:1, minHeight:0, overflow:'hidden' }}>
+                <NewsPanel news={news} />
+              </div>
             )}
           </div>
         </aside>
@@ -608,5 +611,5 @@ export default function AuctionPage() {
 const as = {
   page:   { minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' },
   header: { position:'relative', zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 20px', borderBottom:'1px solid var(--border)', background:'rgba(10,10,15,.92)', backdropFilter:'blur(16px)', gap:16 },
-  main:   { position:'relative', zIndex:1, display:'grid', gridTemplateColumns:'240px 1fr 280px', gap:14, flex:1, padding:14, height:'calc(100vh - 57px)', overflow:'hidden' },
+  main:   { position:'relative', zIndex:1, display:'grid', gridTemplateColumns:'240px 1fr 280px', gap:14, flex:1, padding:14, height:'calc(100vh - 57px)', overflow:'hidden', minHeight:0 },
 };
