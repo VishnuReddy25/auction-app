@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getAchievements } from '../services/achievements';
 
 const fmtL = v => {
   if (!v && v !== 0) return '—';
@@ -122,6 +123,29 @@ export default function TeamStatsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Achievements */}
+              {(() => {
+                const rank = leaderboard.findIndex(e => e.id === selected.id);
+                const earned = getAchievements(selected, settings, rank);
+                if (!earned.length) return null;
+                return (
+                  <>
+                    <h3 style={s.sectionTitle}>🏅 Achievements ({earned.length})</h3>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:10, marginBottom:8 }}>
+                      {earned.map(a => (
+                        <div key={a.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'rgba(245,200,66,.08)', border:'1px solid rgba(245,200,66,.25)', borderRadius:12 }}>
+                          <span style={{ fontSize:24 }}>{a.icon}</span>
+                          <div>
+                            <div style={{ fontWeight:700, fontSize:14, color:'var(--gold)' }}>{a.title}</div>
+                            <div style={{ fontSize:12, color:'var(--text2)' }}>{a.desc}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Quick insights */}
               {selected.team?.length > 0 && (
