@@ -5,8 +5,9 @@ import { connectSocket, getSocket } from '../services';
 import SoundEngine from '../services/SoundEngine';
 import Confetti    from '../components/Confetti';
 import AnimatedBg  from '../components/AnimatedBg';
-import NewsPanel   from '../components/NewsPanel';
+import NewsPanel      from '../components/NewsPanel';
 import AnalyticsPanel from '../components/AnalyticsPanel';
+import VoiceChat      from '../components/VoiceChat';
 
 const fmtL = v => { if (!v && v !== 0) return '—'; if (v >= 100) return `₹${(v/100).toFixed(1)}Cr`; return `₹${v}L`; };
 const roleColor = { Batsman:'#f5c842', Bowler:'#3b82f6', 'All-Rounder':'#2ecc71', 'Wicket-Keeper':'#e05a2b' };
@@ -572,8 +573,18 @@ export default function AuctionPage() {
           )}
         </main>
 
-        {/* Right: Chat + News tabs */}
-        <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column' }}>
+        {/* Right: Voice + Chat/News tabs */}
+        <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column', gap:10 }}>
+          {/* Voice Chat */}
+          <div className="card" style={{ flexShrink:0, border:'1px solid rgba(46,204,113,.2)' }}>
+            <VoiceChat
+              roomCode={code?.toUpperCase()}
+              userId={user?._id}
+              username={user?.username}
+            />
+          </div>
+
+          {/* Chat + News tabs */}
           <div className="card" style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden', minHeight:0 }}>
             {/* Tab switcher */}
             <div style={{ display:'flex', background:'var(--bg3)', borderRadius:8, padding:3, marginBottom:12, gap:3, flexShrink:0 }}>
@@ -623,6 +634,7 @@ export default function AuctionPage() {
                 <NewsPanel news={news} />
               </div>
             )}
+          </div>
           </div>
         </aside>
       </div>
