@@ -185,7 +185,8 @@ function BidPanel({ state, myId, onBid, onSuggest, suggestion, error }) {
   if (!me || me.isHost) return null;
   const isLeading = state?.currentBidderId === me.id;
   const canBid = state?.phase==='bidding' && amount>=minBid && amount<=me.budget && !isLeading;
-  const quick  = [minBid, minBid+inc, minBid+inc*2, minBid+inc*5].filter(v => v<=me.budget);
+  const base   = state?.currentBid > 0 ? state.currentBid : (item?.basePrice || 20);
+  const quick  = [base+10, base+20, base+30, base+50].filter(v => v >= minBid && v <= me.budget);
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', background:'var(--bg3)', borderRadius:10 }}>
@@ -205,9 +206,17 @@ function BidPanel({ state, myId, onBid, onSuggest, suggestion, error }) {
           <div style={{ fontSize:12, color:'var(--text2)' }}>{suggestion.reason}</div></div>
         <button onClick={() => setAmount(suggestion.amount)} className="btn btn-ghost btn-sm">Use</button>
       </div>}
-      {quick.length > 0 && <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-        {quick.map(v => <button key={v} onClick={() => setAmount(v)}
-          style={{ flex:'1 1 calc(50% - 4px)', padding:'9px 0', background:'var(--bg3)', border:`1px solid ${amount===v?'var(--gold)':'var(--border2)'}`, borderRadius:8, color:amount===v?'var(--gold)':'var(--text2)', cursor:'pointer', fontFamily:'var(--font-m)', fontSize:13, fontWeight:600, transition:'all 150ms', background:amount===v?'var(--gold-dim)':'var(--bg3)' }}>{fmtL(v)}</button>)}
+      {quick.length > 0 && <div style={{ display:'flex', gap:8 }}>
+        {quick.map((v, i) => {
+          const adds  = [10, 20, 30, 50];
+          const isSelected = amount === v;
+          return (
+            <button key={v} onClick={() => setAmount(v)}
+              style={{ flex:1, padding:'10px 0', background:isSelected?'var(--gold-dim)':'var(--bg3)', border:`1px solid ${isSelected?'var(--gold)':'var(--border2)'}`, borderRadius:8, color:isSelected?'var(--gold)':'var(--text2)', cursor:'pointer', fontFamily:'var(--font-m)', fontSize:13, fontWeight:600, transition:'all 150ms', textAlign:'center' }}>
+              {fmtL(v)}
+            </button>
+          );
+        })}
       </div>}
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
         <button onClick={() => setAmount(a => Math.max(minBid,a-inc))} style={{ width:48, height:56, background:'var(--bg3)', border:'1px solid var(--border2)', borderRadius:8, color:'var(--text)', cursor:'pointer', fontSize:22 }} disabled={amount<=minBid}>−</button>
