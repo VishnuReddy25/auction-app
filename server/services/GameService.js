@@ -84,18 +84,21 @@ const GameService = {
   },
 
   async closeRound(roomCode, io) {
-    // Prevent double-close race condition
     if (closingRound.has(roomCode)) return;
     closingRound.add(roomCode);
-
     try {
       Timer.clear(roomCode);
       const state = Store.get(roomCode);
       if (!state) return;
-      if (state.phase !== 'bidding') return;
+      // Only block if already completed
+      if (state.phase === 'completed') return;
+      // If not in bidding phase, force it so closeBidding works
+      const workingState = state.phase !== 'bidding'
+        ? { ...state, phase: 'bidding' }
+        : state;
 
       const hv = this.getHiddenValues(roomCode);
-      const { state: newState, result } = Engine.closeBidding(state);
+      const { state: newState, result } = Engine.closeBidding(workingState);
 
       if (result.type === 'sold') {
         const tv = hv[result.item?.name] || result.item?.basePrice;
@@ -121,9 +124,7 @@ const GameService = {
     Timer.clear(roomCode);
     const state = Store.get(roomCode);
     if (!state) return { ok: false };
-
-    // Guard: only advance from sold/unsold phase
-    if (state.phase !== 'sold' && state.phase !== 'unsold') return { ok: false, error: 'Round not finished yet' };
+    if (state.phase === 'completed') return { ok: false, error: 'Auction already complete' };
 
     const { state: newState, done } = Engine.nextItem(state);
     Store.set(roomCode, newState);
