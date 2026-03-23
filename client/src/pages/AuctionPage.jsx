@@ -756,6 +756,23 @@ export default function AuctionPage() {
               <button onClick={hostNext} className="btn btn-gold btn-full btn-lg">Next Player →</button>
             </div>
           )}
+          {/* ── Emergency recover — shows when game appears stuck ── */}
+          {isHost && (
+            <div style={{ display:'flex', gap:8 }}>
+              {/* Force close if stuck in bidding with no timer response */}
+              {state?.phase==='bidding' && (
+                <button onClick={hostUnsold} className="btn btn-ghost btn-sm" style={{ flex:1, fontSize:11, color:'var(--text3)' }}>
+                  ⚠️ Force Close Round
+                </button>
+              )}
+              {/* Force next if stuck in sold/unsold */}
+              {(state?.phase==='sold'||state?.phase==='unsold') && (
+                <button onClick={hostNext} className="btn btn-ghost btn-sm" style={{ flex:1, fontSize:11, color:'var(--text3)' }}>
+                  ⚠️ Force Next Player
+                </button>
+              )}
+            </div>
+          )}
         </main>
 
         {/* Right: Chat/News tabs */}
