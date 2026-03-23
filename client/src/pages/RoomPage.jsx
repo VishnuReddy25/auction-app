@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { getRoom, connectSocket, getSocket } from '../services';
-import VideoChat from '../components/VideoChat';
 import VoiceChat from '../components/VoiceChat';
 
 export default function RoomPage() {
