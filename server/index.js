@@ -1,14 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const http    = require('http');
+const https   = require('https');
 const cors    = require('cors');
 const { Server } = require('socket.io');
-const connectDB  = require('./config/database');
-const { initSockets }        = require('./sockets');
-const { initVoiceSignaling } = require('./sockets/voiceSignaling');
-const GameService = require('./services/GameService');
-const Store       = require('./engine/StateStore');
-const Timer       = require('./engine/TimerManager');
+const connectDB = require('./config/database');
 
 const app    = express();
 const server = http.createServer(app);
@@ -28,25 +24,61 @@ app.use('/api/replay',  require('./routes/replay'));
 app.get('/api/health',  (_,res) => res.json({ ok: true, uptime: process.uptime() }));
 app.use(require('./middleware/errorHandler'));
 
-initSockets(io);
-initVoiceSignaling(io);
+// Init sockets
+try {
+  const { initSockets } = require('./sockets');
+  initSockets(io);
+} catch(e) { console.error('Socket init error:', e.message); }
 
-// Timer watchdog — restarts dead timers every 10 seconds
-setInterval(() => {
-  const rooms = Store.getAll();
-  rooms.forEach(({ code, state }) => {
-    if (state.phase === 'bidding' && !Timer.isRunning(code)) {
-      console.log(`Watchdog: restarting timer for room ${code}`);
-      GameService._startTimer(code, state.settings?.timerSeconds || 30, io);
-    }
-  });
-}, 10000);
+try {
+  const { initVoiceSignaling } = require('./sockets/voiceSignaling');
+  initVoiceSignaling(io);
+} catch(e) { console.error('Voice init error:', e.message); }
+
+// Timer watchdog - checks every 10s if any room timer died
+try {
+  const Store       = require('./engine/StateStore');
+  const Timer       = require('./engine/TimerManager');
+  const GameService = require('./services/GameService');
+  setInterval(() => {
+    const rooms = Store.getAll ? Store.getAll() : [];
+    rooms.forEach(({ code, state }) => {
+      if (state.phase === 'bidding' && !Timer.isRunning(code)) {
+        console.log(`Watchdog: restarting timer for room ${code}`);
+        GameService._startTimer(code, state.settings?.timerSeconds || 30, io);
+      }
+    });
+  }, 10000);
+} catch(e) { console.error('Watchdog init error:', e.message); }
 
 const PORT = process.env.PORT || 5000;
+
 connectDB().then(() => {
   server.listen(PORT, () => {
     console.log(`\n🏏  BidWar running on port ${PORT}`);
     console.log(`✅  MongoDB connected`);
+
+    // Self-ping every 4 minutes to prevent Render free tier sleeping
+    const SELF_URL = process.env.RENDER_EXTERNAL_URL
+      ? `https://${process.env.RENDER_EXTERNAL_URL}`
+      : `http://localhost:${PORT}`;
+
+    setInterval(() => {
+      const url    = `${SELF_URL}/api/health`;
+      const client = url.startsWith('https') ? https : http;
+      client.get(url, res => {
+        console.log(`Keep-alive ping: ${res.statusCode}`);
+      }).on('error', err => {
+        console.log(`Keep-alive ping failed: ${err.message}`);
+      });
+    }, 4 * 60 * 1000);
+
+    console.log(`✅  Keep-alive ping active (every 4 min)`);
     console.log(`✅  Timer watchdog active\n`);
+  });
+}).catch(err => {
+  console.error('DB connection failed:', err.message);
+  server.listen(PORT, () => {
+    console.log(`🏏  BidWar running on port ${PORT} (no DB)`);
   });
 });
