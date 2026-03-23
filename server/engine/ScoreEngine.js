@@ -1,6 +1,6 @@
 /**
  * ScoreEngine — Role-aware scoring
- * Final Score = 50% Team Strength + 5% Value Efficiency + 40% Team Balance + 5% Clutch Bonus
+ * Final Score = 50% Team Strength + 25% Value Efficiency + 15% Team Balance + 10% Clutch Bonus
  *
  * Each role scored on different stats:
  * Batsman      → Average (60%) + Strike Rate (40%)
@@ -74,18 +74,25 @@ class ScoreEngine {
   }
 
   // ── Team Balance (0-100) ──────────────────────────────────────────────────
-  // Rewards well-rounded squads
+  // Rewards well-rounded squads with minimum 11 players
   static calculateBalance(team) {
     if (!team || team.length === 0) return 0;
+
+    // Heavy penalty if fewer than 11 players
+    if (team.length < 11) {
+      const missing = 11 - team.length;
+      return Math.max(0, Math.round(50 - missing * 8));
+    }
+
     const counts = { Batsman:0, Bowler:0, 'All-Rounder':0, 'Wicket-Keeper':0 };
     team.forEach(p => { if (counts[p.role] !== undefined) counts[p.role]++; });
     const total = team.length;
     const ideal = { Batsman:0.35, Bowler:0.30, 'All-Rounder':0.25, 'Wicket-Keeper':0.10 };
 
     let score = 100;
-    if (counts['Wicket-Keeper'] === 0) score -= 25; // heavy penalty for no keeper
+    if (counts['Wicket-Keeper'] === 0) score -= 25;
     Object.keys(ideal).forEach(role => {
-      if (counts[role] === 0) score -= 15; // penalty for missing any role
+      if (counts[role] === 0) score -= 15;
       const diff = Math.abs((counts[role] / Math.max(total,1)) - ideal[role]);
       score -= diff * 25;
     });
@@ -116,9 +123,9 @@ class ScoreEngine {
     const clutch     = this.calculateClutchBonus(clutchEvents);
     const final      = Math.round(
       strength   * 0.50 +
-      efficiency * 0.05 +
-      balance    * 0.40 +
-      clutch     * 0.05
+      efficiency * 0.25 +
+      balance    * 0.15 +
+      clutch     * 0.10
     );
     return { final, strength, efficiency, balance, clutch };
   }
