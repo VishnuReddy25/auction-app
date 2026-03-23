@@ -116,11 +116,42 @@ function initSockets(io) {
       ack?.({ ok: true });
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       const m = meta.get(socket.id);
-      if (m) {
-        io.to(m.roomCode).emit('chat:msg', { username:'System', message:`${m.username} disconnected`, type:'system' });
-        meta.delete(socket.id);
+      if (!m) return;
+      meta.delete(socket.id);
+
+      try {
+        // Only remove from room if auction hasn't started yet (waiting phase)
+        const state = require('./engine/StateStore').get?.(m.roomCode) ||
+                      require('../engine/StateStore').get?.(m.roomCode);
+        const phase = state?.phase || 'waiting';
+
+        if (phase === 'waiting') {
+          // Remove from DB members list
+          await Room.findOneAndUpdate(
+            { code: m.roomCode },
+            { $pull: { members: { userId: m.userId } } }
+          );
+          // Also remove from in-memory state
+          const Store = require('../engine/StateStore');
+          const st    = Store.get(m.roomCode);
+          if (st) {
+            st.players = st.players.filter(p => p.id !== m.userId);
+            Store.set(m.roomCode, st);
+          }
+          // Get updated room and broadcast
+          const room = await Room.findOne({ code: m.roomCode });
+          if (room) {
+            io.to(m.roomCode).emit('room:updated', { state: Store.get(m.roomCode), members: room.members });
+          }
+          io.to(m.roomCode).emit('chat:msg', { username:'System', message:`${m.username} left the room`, type:'system' });
+        } else {
+          // Auction in progress — just notify, keep them in the list
+          io.to(m.roomCode).emit('chat:msg', { username:'System', message:`${m.username} disconnected`, type:'system' });
+        }
+      } catch(err) {
+        console.error('disconnect error:', err.message);
       }
     });
   });
