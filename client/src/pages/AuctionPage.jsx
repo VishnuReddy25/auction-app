@@ -176,39 +176,81 @@ const ps = {
 
 // ── Bid panel ─────────────────────────────────────────────────────────────────
 function BidPanel({ state, myId, onBid, onSuggest, suggestion, error }) {
-  const me     = state?.players?.find(p => p.id === myId);
-  const item   = state?.items?.[state?.currentIndex];
-  const inc    = state?.settings?.minIncrement || 5;
-  const minBid = state?.currentBid > 0 ? state.currentBid + inc : (item?.basePrice || 20);
+  const me        = state?.players?.find(p => p.id === myId);
+  const item      = state?.items?.[state?.currentIndex];
+  const inc       = state?.settings?.minIncrement || 5;
+  const minBid    = state?.currentBid > 0 ? state.currentBid + inc : (item?.basePrice || 20);
   const [amount, setAmount] = useState(minBid);
   useEffect(() => setAmount(a => Math.max(a, minBid)), [minBid]);
   if (!me || me.isHost) return null;
-  const isLeading = state?.currentBidderId === me.id;
-  const canBid = state?.phase==='bidding' && amount>=minBid && amount<=me.budget && !isLeading;
-  const base   = state?.currentBid > 0 ? state.currentBid : (item?.basePrice || 20);
-  const quick  = [base+10, base+20, base+30, base+50].filter(v => v >= minBid && v <= me.budget);
+
+  const myTeamCount  = me.team?.length || 0;
+  const totalItems   = state?.items?.length || 100;
+  const doneItems    = state?.currentIndex || 0;
+  const remaining    = totalItems - doneItems; // players left to auction
+  const needMore     = myTeamCount < 11;       // must reach 11
+  const isLeading    = state?.currentBidderId === me.id;
+  const canBid       = state?.phase==='bidding' && amount>=minBid && amount<=me.budget && !isLeading;
+  const base         = state?.currentBid > 0 ? state.currentBid : (item?.basePrice || 20);
+  const quick        = [base+10, base+20, base+30, base+50].filter(v => v >= minBid && v <= me.budget);
+
+  // How many players left that they MUST buy to reach 11
+  const mustBuy = Math.max(0, 11 - myTeamCount);
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+      {/* Budget + Squad size */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', background:'var(--bg3)', borderRadius:10 }}>
-        <div><div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:2 }}>YOUR BUDGET</div>
-          <div style={{ fontFamily:'var(--font-m)', fontSize:20, color:'var(--gold)', fontWeight:600 }}>{fmtL(me.budget)}</div></div>
-        <div style={{ textAlign:'right' }}><div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:2 }}>SPENT</div>
-          <div style={{ fontFamily:'var(--font-m)', fontSize:16, color:'var(--red)' }}>{fmtL((state?.settings?.startingBudget||1000)-me.budget)}</div></div>
+        <div>
+          <div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:2 }}>YOUR BUDGET</div>
+          <div style={{ fontFamily:'var(--font-m)', fontSize:20, color:'var(--gold)', fontWeight:600 }}>{fmtL(me.budget)}</div>
+        </div>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:2 }}>SQUAD</div>
+          <div style={{ fontFamily:'var(--font-m)', fontSize:20, fontWeight:600, color: myTeamCount >= 11 ? 'var(--green)' : 'var(--gold)' }}>
+            {myTeamCount}/11
+          </div>
+        </div>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:2 }}>SPENT</div>
+          <div style={{ fontFamily:'var(--font-m)', fontSize:16, color:'var(--red)' }}>{fmtL((state?.settings?.startingBudget||1000)-me.budget)}</div>
+        </div>
       </div>
+
+      {/* Must buy warning */}
+      {needMore && remaining <= mustBuy + 5 && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'rgba(231,76,60,.12)', border:'1px solid rgba(231,76,60,.35)', borderRadius:10 }}>
+          <span style={{ fontSize:18 }}>⚠️</span>
+          <div>
+            <div style={{ fontWeight:700, color:'var(--red)', fontSize:13 }}>Need {mustBuy} more player{mustBuy!==1?'s':''}!</div>
+            <div style={{ fontSize:11, color:'var(--text2)' }}>Minimum 11 players required — bid aggressively!</div>
+          </div>
+        </div>
+      )}
+
+      {/* Reached 11 — good to go */}
+      {myTeamCount >= 11 && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px', background:'rgba(46,204,113,.08)', border:'1px solid rgba(46,204,113,.25)', borderRadius:10 }}>
+          <span style={{ fontSize:16 }}>✅</span>
+          <span style={{ fontSize:13, color:'var(--green)', fontWeight:600 }}>Squad complete! Bid for extras if you want.</span>
+        </div>
+      )}
+
       {isLeading && <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(46,204,113,.1)', border:'1px solid rgba(46,204,113,.3)', borderRadius:10 }}>
         <span style={{ fontSize:20 }}>🏆</span>
         <div><div style={{ fontWeight:700, color:'var(--green)', fontSize:15 }}>You're leading!</div>
           <div style={{ fontSize:12, color:'var(--text2)' }}>Hold tight or wait for the timer</div></div>
       </div>}
+
       {suggestion && <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding:12, background:'rgba(245,200,66,.06)', border:'1px solid rgba(245,200,66,.2)', borderRadius:10 }}>
         <span style={{ fontSize:20 }}>🤖</span>
         <div style={{ flex:1 }}><div style={{ fontWeight:600, color:'var(--gold)', fontSize:14 }}>AI: {fmtL(suggestion.amount)}</div>
           <div style={{ fontSize:12, color:'var(--text2)' }}>{suggestion.reason}</div></div>
         <button onClick={() => setAmount(suggestion.amount)} className="btn btn-ghost btn-sm">Use</button>
       </div>}
+
       {quick.length > 0 && <div style={{ display:'flex', gap:8 }}>
-        {quick.map((v, i) => {
-          const adds  = [10, 20, 30, 50];
+        {quick.map((v) => {
           const isSelected = amount === v;
           return (
             <button key={v} onClick={() => setAmount(v)}
@@ -218,6 +260,7 @@ function BidPanel({ state, myId, onBid, onSuggest, suggestion, error }) {
           );
         })}
       </div>}
+
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
         <button onClick={() => setAmount(a => Math.max(minBid,a-inc))} style={{ width:48, height:56, background:'var(--bg3)', border:'1px solid var(--border2)', borderRadius:8, color:'var(--text)', cursor:'pointer', fontSize:22 }} disabled={amount<=minBid}>−</button>
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', background:'var(--bg3)', border:'1px solid var(--border2)', borderRadius:8, padding:'10px 12px' }}>
