@@ -7,6 +7,7 @@ import Confetti    from '../components/Confetti';
 import AnimatedBg  from '../components/AnimatedBg';
 import NewsPanel      from '../components/NewsPanel';
 import AnalyticsPanel from '../components/AnalyticsPanel';
+import VoiceChat      from '../components/VoiceChat';
 
 const fmtL = v => { if (!v && v !== 0) return '—'; if (v >= 100) return `₹${(v/100).toFixed(1)}Cr`; return `₹${v}L`; };
 const roleColor = { Batsman:'#f5c842', Bowler:'#3b82f6', 'All-Rounder':'#2ecc71', 'Wicket-Keeper':'#e05a2b' };
@@ -362,14 +363,16 @@ export default function AuctionPage() {
     s.emit('room:join', { roomCode:code.toUpperCase(), userId:user._id, username:user.username }, res => {
       if (res?.ok) { setState(res.state); setTimerTotal(res.state?.settings?.timerSeconds||30); setJoined(true); }
     });
-    s.on('room:joined',     ({ state:st }) => { setState(st); setTimerTotal(st.settings?.timerSeconds||30); setJoined(true); });
+    s.on('room:joined',     ({ state:st }) => { setState(st); setTimerTotal(st.settings?.timerSeconds||30); setTimer(st.settings?.timerSeconds||30); setJoined(true); });
     s.on('room:updated',    ({ state:st }) => setState(st));
     s.on('auction:started', ({ state:st }) => {
       setState(st); setResult(null); setPaused(false);
-      setTimerTotal(st.settings?.timerSeconds||30);
+      const secs = st.settings?.timerSeconds||30;
+      setTimerTotal(secs);
+      setTimer(secs); // ← CRITICAL: set timer display immediately
       setIsNewItem(true); setTimeout(()=>setIsNewItem(false),800);
       sound(()=>SoundEngine.start());
-      const item = st.items?.[0];
+      const item = st.items?.[st.currentIndex||0];
       setNews(n => [...n, makeNews('start', `🏏 Auction started!`, `First up: ${item?.name} (Base: ${fmtL(item?.basePrice)})`)]);
     });
     s.on('bid:new', ({ state:st, timerReset, analytics }) => {
@@ -420,10 +423,18 @@ export default function AuctionPage() {
       )]);
     });
     s.on('auction:paused',   ()          => setPaused(true));
-    s.on('auction:resumed',  ({state:st})=> { setState(st); setPaused(false); });
+    s.on('auction:resumed',  ({state:st})=> { setState(st); setPaused(false); const secs=st.settings?.timerSeconds||30; setTimer(secs); setTimerTotal(secs); });
     s.on('auction:complete', ({leaderboard:lb}) => { setLeaderboard(lb); setResult(null); setConfetti(true); sound(()=>SoundEngine.win()); setTimeout(()=>setConfetti(false),5000); });
     s.on('chat:msg', m => setChat(c=>[...c.slice(-99),m]));
-    return () => ['room:joined','room:updated','auction:started','bid:new','timer','round:closed','item:next','auction:paused','auction:resumed','auction:complete','chat:msg'].forEach(e=>s.off(e));
+
+    // Auto re-join on reconnect (handles Render cold starts / network drops)
+    s.on('connect', () => {
+      s.emit('room:join', { roomCode:code.toUpperCase(), userId:user._id, username:user.username }, res => {
+        if (res?.ok) { setState(res.state); setTimerTotal(res.state?.settings?.timerSeconds||30); setJoined(true); }
+      });
+    });
+
+    return () => ['room:joined','room:updated','auction:started','bid:new','timer','round:closed','item:next','auction:paused','auction:resumed','auction:complete','chat:msg','connect'].forEach(e=>s.off(e));
   }, [code, user]);
 
   useEffect(() => { chatRef.current?.scrollIntoView({behavior:'smooth'}); }, [chat]);
@@ -470,6 +481,11 @@ export default function AuctionPage() {
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
           <button onClick={()=>setSoundOn(v=>!v)} className="btn btn-ghost btn-sm">{soundOn?'🔊':'🔇'}</button>
+          <button onClick={() => {
+            getSocket().emit('room:join', { roomCode:code.toUpperCase(), userId:user?._id, username:user?.username }, res => {
+              if (res?.ok) { setState(res.state); setTimerTotal(res.state?.settings?.timerSeconds||30); }
+            });
+          }} className="btn btn-ghost btn-sm" title="Re-sync if stuck">🔄</button>
           {isHost && state?.phase==='bidding' && !paused && <button onClick={hostPause} className="btn btn-ghost btn-sm">⏸</button>}
           {isHost && paused && <button onClick={hostResume} className="btn btn-gold btn-sm">▶ Resume</button>}
           <span style={{ fontSize:11,color:'var(--text3)',letterSpacing:'.1em',textTransform:'uppercase' }}>{paused?'⏸ PAUSED':state?.phase?.toUpperCase()}</span>
@@ -635,7 +651,7 @@ export default function AuctionPage() {
                         return (
                           <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8, marginBottom:5, transition:'all 200ms', background:isCurrent?'rgba(245,200,66,.07)':isSold?'rgba(46,204,113,.04)':'var(--bg3)', border:`1px solid ${isCurrent?'rgba(245,200,66,.4)':isSold?'rgba(46,204,113,.2)':'var(--border)'}`, opacity:isUnsold?0.5:1 }}>
                             <span style={{ fontSize:12, flexShrink:0, width:16 }}>
-                              {isCurrent?'🔴':isSold?'✅':isUnsold?'❌':'⏳'}
+                              {isCurrent ? '🔴' : isSold ? '✅' : isUnsold ? '❌' : ''}
                             </span>
                             <div style={{ width:26, height:26, borderRadius:6, background:`${rc}20`, color:rc, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:10, flexShrink:0 }}>
                               {item.image||item.name?.[0]}
@@ -735,6 +751,14 @@ export default function AuctionPage() {
 
         {/* Right: Chat/News tabs */}
         <aside style={{ overflow:'hidden', minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column', gap:10 }}>
+          {/* Voice Chat */}
+          <div className="card" style={{ flexShrink:0, border:'1px solid rgba(46,204,113,.2)' }}>
+            <VoiceChat
+              roomCode={code?.toUpperCase()}
+              userId={user?._id}
+              username={user?.username}
+            />
+          </div>
           {/* Chat + News tabs */}
           <div className="card" style={{ flex:1, display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden', minHeight:0 }}>
             {/* Tab switcher */}
