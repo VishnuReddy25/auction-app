@@ -31,15 +31,12 @@ app.use(require('./middleware/errorHandler'));
 initSockets(io);
 initVoiceSignaling(io);
 
-// ── Timer watchdog ────────────────────────────────────────────────────────────
-// Every 10 seconds, check all active rooms.
-// If a room is in 'bidding' phase but has no running timer, restart it.
-// This recovers from Render sleeping mid-game.
+// Timer watchdog — restarts dead timers every 10 seconds
 setInterval(() => {
-  const rooms = Store.getAll?.() || [];
+  const rooms = Store.getAll();
   rooms.forEach(({ code, state }) => {
     if (state.phase === 'bidding' && !Timer.isRunning(code)) {
-      console.log(`⚠️  Watchdog: restarting timer for room ${code}`);
+      console.log(`Watchdog: restarting timer for room ${code}`);
       GameService._startTimer(code, state.settings?.timerSeconds || 30, io);
     }
   });
@@ -48,8 +45,8 @@ setInterval(() => {
 const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
   server.listen(PORT, () => {
-    console.log(`\n🏏  BidWar v2 running on port ${PORT}`);
-    console.log(`✅  Real-time open bidding enabled`);
+    console.log(`\n🏏  BidWar running on port ${PORT}`);
+    console.log(`✅  MongoDB connected`);
     console.log(`✅  Timer watchdog active\n`);
   });
 });
