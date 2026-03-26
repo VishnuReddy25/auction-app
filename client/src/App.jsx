@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { authLogin, authRegister, authMe } from './services';
-import AuthPage       from './pages/AuthPage';
-import LobbyPage      from './pages/LobbyPage';
-import RoomPage       from './pages/RoomPage';
-import AuctionPage    from './pages/AuctionPage';
-import TeamStatsPage  from './pages/TeamStatsPage';
-import ReplayPage     from './pages/ReplayPage';
+import AuthPage          from './pages/AuthPage';
+import LobbyPage         from './pages/LobbyPage';
+import RoomPage          from './pages/RoomPage';
+import AuctionPage       from './pages/AuctionPage';
+import TeamStatsPage     from './pages/TeamStatsPage';
+import ReplayPage        from './pages/ReplayPage';
+import FantasyPage       from './pages/FantasyPage';
+import MatchSelectionPage from './pages/MatchSelectionPage';
+import SeasonDashboard   from './pages/SeasonDashboard';
 
 // ── Auth Context ─────────────────────────────────────────────────────────────
 const AuthCtx = createContext(null);
@@ -91,14 +94,17 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/auth"            element={<AuthPage />} />
-          <Route path="/auth/callback"   element={<OAuthCallback />} />
-          <Route path="/"                element={<Guard><LobbyPage /></Guard>} />
-          <Route path="/room/:code"      element={<Guard><RoomPage /></Guard>} />
-          <Route path="/auction/:code"   element={<Guard><AuctionPage /></Guard>} />
-          <Route path="/stats"           element={<Guard><TeamStatsPage /></Guard>} />
-          <Route path="/replay/:code"    element={<Guard><ReplayPage /></Guard>} />
-          <Route path="*"                element={<Navigate to="/" replace />} />
+          <Route path="/auth"                    element={<AuthPage />} />
+          <Route path="/auth/callback"           element={<OAuthCallback />} />
+          <Route path="/"                        element={<Guard><LobbyPage /></Guard>} />
+          <Route path="/room/:code"              element={<Guard><RoomPage /></Guard>} />
+          <Route path="/auction/:code"           element={<Guard><AuctionPage /></Guard>} />
+          <Route path="/stats"                   element={<Guard><TeamStatsPage /></Guard>} />
+          <Route path="/replay/:code"            element={<Guard><ReplayPage /></Guard>} />
+          <Route path="/fantasy"                 element={<Guard><FantasyPage /></Guard>} />
+          <Route path="/fantasy/match/:matchId"  element={<Guard><MatchSelectionPage /></Guard>} />
+          <Route path="/fantasy/season/:id"      element={<Guard><SeasonDashboard /></Guard>} />
+          <Route path="*"                        element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
