@@ -21,6 +21,9 @@ app.use('/api/auth',    require('./routes/auth'));
 app.use('/api/rooms',   require('./routes/rooms'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/replay',  require('./routes/replay'));
+app.use('/api/seasons', require('./routes/seasons'));
+app.use('/api/matches', require('./routes/matches'));
+app.use('/api/fantasy', require('./routes/fantasy'));
 app.get('/api/health',  (_,res) => res.json({ ok: true, uptime: process.uptime() }));
 app.use(require('./middleware/errorHandler'));
 
