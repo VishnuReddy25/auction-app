@@ -36,6 +36,9 @@ export default function LobbyPage() {
       <header style={s.header}>
         <div style={s.logo}>🏏 <span style={s.logoTxt}>BidWar</span></div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <button onClick={() => nav('/fantasy')} className="btn btn-outline btn-sm" style={{ color:'var(--gold)', borderColor:'var(--gold)' }}>
+            🏆 Fantasy
+          </button>
           <span style={{ color:'var(--text2)', fontSize:14 }}>👤 {user?.username}</span>
           <button onClick={logout} className="btn btn-ghost btn-sm">Sign Out</button>
         </div>
