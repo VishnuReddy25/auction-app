@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { connectSocket, getSocket } from '../services';
@@ -321,7 +320,7 @@ function ORow({ label, val, gold }) {
 }
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
-function Leaderboard({ leaderboard, state, onStats, onLobby }) {
+function Leaderboard({ leaderboard, state, onStats, onLobby, onSaveForSeason, isSaving, code, isHost }) {
   const medals = ['🥇','🥈','🥉'];
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(12px)' }}>
@@ -363,9 +362,23 @@ function Leaderboard({ leaderboard, state, onStats, onLobby }) {
             </div>
           ))}
         </div>
-        <div style={{ padding:'16px 16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
-          <button onClick={onStats}  className="btn btn-gold btn-full btn-lg">📊 View Team Stats & Achievements</button>
-          <button onClick={onLobby} className="btn btn-ghost btn-full">🏠 Back to Lobby</button>
+
+        {/* Save for IPL season — host only */}
+        {isHost && (
+          <div style={{ margin:'0 16px', padding:'16px', background:'rgba(245,200,66,.08)', border:'1px solid rgba(245,200,66,.25)', borderRadius:12 }}>
+            <div style={{ fontWeight:700, fontSize:15, color:'var(--gold)', marginBottom:6 }}>🏏 Continue as IPL Fantasy League?</div>
+            <p style={{ fontSize:13, color:'var(--text2)', marginBottom:12, lineHeight:1.5 }}>
+              Save this room for the whole IPL season. Your squads will automatically earn fantasy points after every match you add!
+            </p>
+            <button onClick={onSaveForSeason} disabled={isSaving} className="btn btn-gold btn-full">
+              {isSaving ? '⏳ Saving…' : '🏆 Yes! Save for IPL Season'}
+            </button>
+          </div>
+        )}
+
+        <div style={{ padding:'16px 16px 24px', display:'flex', flexDirection:'column', gap:10, marginTop:8 }}>
+          <button onClick={onStats}  className="btn btn-outline btn-full">📊 View Team Stats & Achievements</button>
+          <button onClick={onLobby} className="btn btn-ghost btn-full">🏠 Back to Lobby (don't save)</button>
         </div>
       </div>
     </div>
@@ -383,6 +396,7 @@ export default function AuctionPage() {
   const [timerTotal,  setTimerTotal]  = useState(30);
   const [result,      setResult]      = useState(null);
   const [leaderboard, setLeaderboard] = useState(null);
+  const [isSaving,    setIsSaving]    = useState(false);
   const [chat,        setChat]        = useState([]);
   const [msg,         setMsg]         = useState('');
   const [bidErr,      setBidErr]      = useState('');
@@ -397,7 +411,6 @@ export default function AuctionPage() {
   const [news,        setNews]        = useState([]);
   const [rightTab,    setRightTab]    = useState('chat');
   const [leftTab,     setLeftTab]     = useState('teams');
-  const [hoveredPlayer, setHoveredPlayer] = useState(null);
   const [bidAnalytics,setBidAnalytics]= useState(null); // hint + clutch from server
 
   const chatRef     = useRef(null);
@@ -496,6 +509,27 @@ export default function AuctionPage() {
   const placeBid = useCallback(amount => { setBidErr(''); getSocket().emit('bid:place',{amount},res=>{ if(!res?.ok) setBidErr(res?.error||'Bid failed'); }); }, []);
   const getSugg  = () => getSocket().emit('bid:suggest',{},res=>setSuggestion(res?.suggestion||null));
   const sendChat = e => { e.preventDefault(); if(!msg.trim()) return; getSocket().emit('chat:send',{message:msg.trim()}); setMsg(''); };
+
+  const saveForSeason = useCallback(async () => {
+    if (!leaderboard || !state) return;
+    setIsSaving(true);
+    try {
+      // Build squads from leaderboard data
+      const squads = leaderboard.map(e => ({
+        userId:   e.id,
+        username: e.username,
+        players:  e.team || [],
+      }));
+      const API = process.env.REACT_APP_API_URL || 'https://auction-app-m9xw.onrender.com/api';
+      await fetch(`${API}/rooms/${code}/save-for-season`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', Authorization:`Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ squads }),
+      });
+      nav(`/season-room/${code}`);
+    } catch(e) { console.error(e); }
+    finally { setIsSaving(false); }
+  }, [leaderboard, state, code, nav]);
   const hostSold   = () => getSocket().emit('host:sold',{});
   const hostUnsold = () => getSocket().emit('host:unsold',{});
   const hostNext   = () => getSocket().emit('host:next',{});
@@ -654,154 +688,84 @@ export default function AuctionPage() {
               </div>
             )}
 
-      {/* Players tab */}
-      {leftTab === 'players' && (
-        <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
-          {(() => {
-            const all      = state?.items || [];
-            const idx      = state?.currentIndex || 0;
-            const sold     = all.filter(i => i.status === 'sold');
-            const unsold   = all.filter(i => i.status === 'unsold');
-            const pending  = all.filter(i => i.status === 'pending');
-            const current  = all[idx];
+            {/* Players tab */}
+            {leftTab === 'players' && (
+              <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
+                {(() => {
+                  const all      = state?.items || [];
+                  const idx      = state?.currentIndex || 0;
+                  const sold     = all.filter(i => i.status === 'sold');
+                  const unsold   = all.filter(i => i.status === 'unsold');
+                  const pending  = all.filter(i => i.status === 'pending');
+                  const current  = all[idx];
 
-            const sorted = [...all].sort((a, b) =>
-              a.team.localeCompare(b.team) || a.name.localeCompare(b.name)
-            );
-
-            return (
-              <>
-                {/* Summary */}
-                <div style={{ display:'flex', gap:6, marginBottom:10 }}>
-                  {[
-                    [pending.length,  'Remaining', 'var(--text)'],
-                    [sold.length,     'Sold',      'var(--gold)'],
-                    [unsold.length,   'Unsold',    'var(--text3)'],
-                  ].map(([val, label, color]) => (
-                    <div key={label} style={{ flex:1, textAlign:'center', padding:'6px 4px', background:'var(--bg3)', borderRadius:8 }}>
-                      <div style={{ fontFamily:'var(--font-d)', fontSize:18, color }}>{val}</div>
-                      <div style={{ fontSize:10, color:'var(--text3)' }}>{label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Current player */}
-                {current && state?.phase === 'bidding' && (
-                  <div style={{ padding:'8px 10px', borderRadius:8, background:'rgba(245,200,66,.08)', border:'1px solid rgba(245,200,66,.3)', marginBottom:8 }}>
-                    <div style={{ fontSize:10, color:'var(--gold)', fontWeight:700 }}>🔴 Now Bidding</div>
-                    <div style={{ fontWeight:700 }}>{current.name}</div>
-                    <div style={{ fontSize:11, color:'var(--text2)' }}>{current.role} · {current.team}</div>
-                  </div>
-                )}
-
-                {/* Players list */}
-                {sorted.map((item, i) => {
-                  const rc        = roleColor[item.role] || '#9898b0';
-                  const isCurrent = item.name === current?.name;
-                  const isSold    = item.status === 'sold';
-                  const isUnsold  = item.status === 'unsold';
+                  // Sort alphabetically by team then name — hides auction order
+                  const sorted = [...all].sort((a, b) =>
+                    a.team.localeCompare(b.team) || a.name.localeCompare(b.name)
+                  );
 
                   return (
-                    <div
-                      key={i}
-                      onMouseEnter={() => setHoveredPlayer(item)}
-                      onMouseLeave={() => setHoveredPlayer(null)}
-                      style={{
-                        display:'flex',
-                        flexDirection:'column',
-                        gap:4,
-                        padding:'7px 10px',
-                        borderRadius:8,
-                        marginBottom:5,
-                        transition:'all 200ms',
-                        background:isCurrent
-                          ? 'rgba(245,200,66,.07)'
-                          : isSold
-                          ? 'rgba(46,204,113,.04)'
-                          : 'var(--bg3)',
-                        border:`1px solid ${
-                          isCurrent
-                            ? 'rgba(245,200,66,.4)'
-                            : isSold
-                            ? 'rgba(46,204,113,.2)'
-                            : 'var(--border)'
-                        }`,
-                        opacity:isUnsold ? 0.5 : 1
-                      }}
-                    >
-                      {/* Main row */}
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <span style={{ fontSize:12, width:16 }}>
-                          {isCurrent ? '🔴' : isSold ? '✅' : isUnsold ? '❌' : ''}
-                        </span>
-
-                        <div style={{
-                          width:26, height:26, borderRadius:6,
-                          background:`${rc}20`, color:rc,
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontWeight:700, fontSize:10
-                        }}>
-                          {item.image || item.name?.[0]}
-                        </div>
-
-                        <div style={{ flex:1 }}>
-                          <div style={{
-                            fontSize:12,
-                            fontWeight:600,
-                            color:isCurrent ? 'var(--gold)' : 'var(--text)'
-                          }}>
-                            {item.name}
+                    <>
+                      {/* Summary */}
+                      <div style={{ display:'flex', gap:6, marginBottom:10 }}>
+                        {[
+                          [pending.length,  'Remaining', 'var(--text)'],
+                          [sold.length,     'Sold',      'var(--gold)'],
+                          [unsold.length,   'Unsold',    'var(--text3)'],
+                        ].map(([val, label, color]) => (
+                          <div key={label} style={{ flex:1, textAlign:'center', padding:'6px 4px', background:'var(--bg3)', borderRadius:8 }}>
+                            <div style={{ fontFamily:'var(--font-d)', fontSize:18, color, lineHeight:1 }}>{val}</div>
+                            <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>{label}</div>
                           </div>
-                          <div style={{ fontSize:10, color:'var(--text3)' }}>
-                            {item.role} · {item.team}
-                          </div>
-                        </div>
-
-                        <div style={{ textAlign:'right' }}>
-                          {isSold ? (
-                            <>
-                              <div style={{ fontSize:11, color:'var(--green)', fontWeight:700 }}>
-                                {fmtL(item.soldFor)}
-                              </div>
-                              <div style={{ fontSize:9, color:'var(--text3)' }}>
-                                {item.soldTo}
-                              </div>
-                            </>
-                          ) : (
-                            <div style={{ fontSize:11, color:'var(--text3)' }}>
-                              {fmtL(item.basePrice)}
-                            </div>
-                          )}
-                        </div>
+                        ))}
                       </div>
 
-                      {/* 🔥 Hover stats */}
-                      {hoveredPlayer?.name === item.name && item.stats && (
-                        <div style={{
-                          marginTop:4,
-                          padding:'6px 8px',
-                          background:'rgba(0,0,0,0.6)',
-                          borderRadius:6,
-                          fontSize:10,
-                          display:'flex',
-                          gap:6,
-                          flexWrap:'wrap'
-                        }}>
-                          {item.stats.runs > 0 && <span>🏏 {item.stats.runs}</span>}
-                          {item.stats.avg > 0 && <span>📊 {item.stats.avg}</span>}
-                          {item.stats.sr > 0 && <span>⚡ {item.stats.sr}</span>}
-                          {item.stats.wkts > 0 && <span>🎯 {item.stats.wkts}</span>}
-                          {item.stats.eco > 0 && <span>💰 {item.stats.eco}</span>}
+                      {/* Current player highlight */}
+                      {current && state?.phase === 'bidding' && (
+                        <div style={{ padding:'8px 10px', borderRadius:8, background:'rgba(245,200,66,.08)', border:'1px solid rgba(245,200,66,.3)', marginBottom:8 }}>
+                          <div style={{ fontSize:10, color:'var(--gold)', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>🔴 Now Bidding</div>
+                          <div style={{ fontWeight:700, fontSize:13 }}>{current.name}</div>
+                          <div style={{ fontSize:11, color:'var(--text2)' }}>{current.role} · {current.team}</div>
                         </div>
                       )}
-                    </div>
+
+                      {/* All players sorted by team — auction order hidden */}
+                      {sorted.map((item, i) => {
+                        const rc        = roleColor[item.role] || '#9898b0';
+                        const isCurrent = item.name === current?.name;
+                        const isSold    = item.status === 'sold';
+                        const isUnsold  = item.status === 'unsold';
+                        const isPending = item.status === 'pending' && !isCurrent;
+                        return (
+                          <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8, marginBottom:5, transition:'all 200ms', background:isCurrent?'rgba(245,200,66,.07)':isSold?'rgba(46,204,113,.04)':'var(--bg3)', border:`1px solid ${isCurrent?'rgba(245,200,66,.4)':isSold?'rgba(46,204,113,.2)':'var(--border)'}`, opacity:isUnsold?0.5:1 }}>
+                            <span style={{ fontSize:12, flexShrink:0, width:16 }}>
+                              {isCurrent ? '🔴' : isSold ? '✅' : isUnsold ? '❌' : ''}
+                            </span>
+                            <div style={{ width:26, height:26, borderRadius:6, background:`${rc}20`, color:rc, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:10, flexShrink:0 }}>
+                              {item.image||item.name?.[0]}
+                            </div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', color:isCurrent?'var(--gold)':'var(--text)' }}>{item.name}</div>
+                              <div style={{ fontSize:10, color:'var(--text3)' }}>{item.role} · {item.team}</div>
+                            </div>
+                            <div style={{ textAlign:'right', flexShrink:0 }}>
+                              {isSold ? (
+                                <>
+                                  <div style={{ fontSize:11, fontFamily:'var(--font-m)', color:'var(--green)', fontWeight:700 }}>{fmtL(item.soldFor)}</div>
+                                  <div style={{ fontSize:9, color:'var(--text3)', maxWidth:55, overflow:'hidden', textOverflow:'ellipsis' }}>{item.soldTo}</div>
+                                </>
+                              ) : (
+                                <div style={{ fontSize:11, color:'var(--text3)' }}>{fmtL(item.basePrice)}</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
                   );
-                })}
-              </>
-            );
-          })()}
-        </div>
-      )}
+                })()}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -955,7 +919,7 @@ export default function AuctionPage() {
       </div>
 
       {result     && <ResultOverlay result={result} isHost={isHost} onNext={hostNext} />}
-      {leaderboard && <Leaderboard leaderboard={leaderboard} state={state} onStats={()=>nav('/stats',{state:{leaderboard,settings:state?.settings,roomCode:code}})} onLobby={()=>nav('/')} />}
+      {leaderboard && <Leaderboard leaderboard={leaderboard} state={state} isHost={isHost} code={code} isSaving={isSaving} onSaveForSeason={saveForSeason} onStats={()=>nav("/stats",{state:{leaderboard,settings:state?.settings,roomCode:code}})} onLobby={()=>nav("/")} />}
     </div>
   );
 }
