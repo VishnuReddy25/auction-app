@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { getRoom, connectSocket, getSocket } from '../services';
+import VoiceChat from '../components/VoiceChat';
 
 export default function RoomPage() {
   const { code } = useParams();
@@ -129,22 +130,33 @@ export default function RoomPage() {
             </div>
           </div>
 
-          {/* Right: Chat */}
-          <div className="card" style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-            <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:12 }}>💬 Chat</h3>
-            <div style={s.chatMsgs}>
-              {chat.map((m, i) => (
-                <div key={i} style={{ ...s.chatMsg, ...(m.type==='system'||m.type==='bid' ? s.chatSys : {}) }}>
-                  {m.type === 'user' && <span style={{ color:'var(--gold)', fontWeight:700, marginRight:6 }}>{m.username}</span>}
-                  <span style={m.type!=='user' ? { color: m.type==='bid' ? '#2ecc71' : 'var(--text3)', fontStyle:'italic' } : {}}>{m.message}</span>
-                </div>
-              ))}
-              <div ref={chatRef} />
+          {/* Right: Voice + Chat */}
+          <div style={{ display:'flex', flexDirection:'column', gap:14, height:'100%' }}>
+            {/* Voice Chat */}
+            <div className="card" style={{ flexShrink:0, border:'1px solid rgba(46,204,113,.2)' }}>
+              <VoiceChat
+                roomCode={code?.toUpperCase()}
+                userId={user?._id}
+                username={user?.username}
+              />
             </div>
-            <form onSubmit={sendChat} style={{ display:'flex', gap:8, paddingTop:10, borderTop:'1px solid var(--border)' }}>
-              <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Say something…" className="input" style={{ fontSize:13 }} />
-              <button type="submit" className="btn btn-outline btn-sm">↑</button>
-            </form>
+            {/* Chat */}
+            <div className="card" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
+              <h3 style={{ fontFamily:'var(--font-d)', fontSize:20, marginBottom:12, flexShrink:0 }}>💬 Chat</h3>
+              <div style={{ ...s.chatMsgs, flex:1, minHeight:0 }}>
+                {chat.filter(m=>m.type==='user').map((m, i) => (
+                  <div key={i} style={s.chatMsg}>
+                    <span style={{ color:'var(--gold)', fontWeight:700, marginRight:6 }}>{m.username}</span>
+                    <span>{m.message}</span>
+                  </div>
+                ))}
+                <div ref={chatRef} />
+              </div>
+              <form onSubmit={sendChat} style={{ display:'flex', gap:8, paddingTop:10, borderTop:'1px solid var(--border)', flexShrink:0 }}>
+                <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Say something…" className="input" style={{ fontSize:13 }} />
+                <button type="submit" className="btn btn-outline btn-sm">↑</button>
+              </form>
+            </div>
           </div>
         </div>
       </main>

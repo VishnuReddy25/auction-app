@@ -1,251 +1,157 @@
-const Room    = require('../models/Room');
-const Engine  = require('../engine/AuctionEngine');
-const Timer   = require('../engine/TimerManager');
-const Store   = require('../engine/StateStore');
-const PLAYERS = require('../services/players');
+const Room        = require('../models/Room');
+const GameService = require('../services/GameService');
+const Store       = require('../engine/StateStore');
 
-// socketId -> { roomCode, userId, username, isHost }
 const meta = new Map();
-
-function getTimerCallbacks(io, roomCode) {
-  return {
-    onTick: left => io.to(roomCode).emit('timer', { left }),
-    onEnd:  () => closeRound(io, roomCode),
-  };
-}
-
-async function closeRound(io, roomCode) {
-  Timer.clear(roomCode);
-  const state = Store.get(roomCode);
-  if (!state || state.phase !== 'bidding') return;
-
-  const { state: newState, result } = Engine.closeBidding(state);
-  Store.set(roomCode, newState);
-
-  io.to(roomCode).emit('round:closed', { result, state: newState });
-
-  if (result.type === 'sold') {
-    io.to(roomCode).emit('chat:msg', {
-      username: '🔨 Auctioneer',
-      message:  `SOLD! ${result.item.name} → ${result.winner} for ₹${result.price}L`,
-      type:     'system',
-    });
-  } else {
-    io.to(roomCode).emit('chat:msg', {
-      username: '🔨 Auctioneer',
-      message:  `UNSOLD — ${result.item.name} goes back to the pool`,
-      type:     'system',
-    });
-  }
-}
 
 module.exports = { initSockets };
 
 function initSockets(io) {
   io.on('connection', socket => {
-    console.log('🔌 connected', socket.id);
 
-    // ── Join room ──────────────────────────────────────────────────────────
     socket.on('room:join', async ({ roomCode, userId, username }, ack) => {
       try {
-        const room = await Room.findOne({ code: roomCode.toUpperCase() }).populate('host','username');
+        const code = roomCode.toUpperCase();
+        const room = await Room.findOne({ code }).populate('host','username');
         if (!room) return ack?.({ ok: false, error: 'Room not found' });
 
         const isHost = room.host._id.toString() === userId;
 
-        // Add to members if not already there
         if (!room.members.find(m => m.userId === userId)) {
           room.members.push({ userId, username, isHost });
           await room.save();
         }
 
-        socket.join(roomCode.toUpperCase());
-        meta.set(socket.id, { roomCode: roomCode.toUpperCase(), userId, username, isHost });
+        socket.join(code);
+        meta.set(socket.id, { roomCode: code, userId, username, isHost });
 
-        // Init state if needed
-        if (!Store.has(roomCode.toUpperCase())) {
-          const players = room.members.map(m => ({
-            id: m.userId, username: m.username, isHost: m.isHost,
-            budget: room.settings.startingBudget,
-          }));
-          const state = Engine.createState({
-            roomId: roomCode.toUpperCase(),
-            players,
-            items: PLAYERS,
-            settings: room.settings,
-          });
-          Store.set(roomCode.toUpperCase(), state);
+        if (!Store.has(code)) {
+          await GameService.initRoom(code, room.members, room.settings);
         } else {
-          // Ensure this player exists in state
-          const state = Store.get(roomCode.toUpperCase());
+          const state = Store.get(code);
           if (!state.players.find(p => p.id === userId)) {
-            state.players.push({ id: userId, username, isHost, budget: room.settings.startingBudget, isActive: true, team: [] });
-            Store.set(roomCode.toUpperCase(), state);
+            state.players.push({ id: userId, username, isHost, budget: room.settings.startingBudget, startingBudget: room.settings.startingBudget, isActive: true, team: [] });
+            Store.set(code, state);
           }
         }
 
-        const state = Store.get(roomCode.toUpperCase());
-        io.to(roomCode.toUpperCase()).emit('room:updated', { state, members: room.members });
+        const state = Store.get(code);
+        io.to(code).emit('room:updated', { state, members: room.members });
         socket.emit('room:joined', { room, state });
-
-        // Announce join
-        io.to(roomCode.toUpperCase()).emit('chat:msg', {
-          username: '🏏 System', message: `${username} joined the room`, type: 'system',
-        });
-
+        io.to(code).emit('chat:msg', { username:'System', message:`${username} joined`, type:'system' });
         ack?.({ ok: true, state, room });
       } catch(err) {
-        console.error(err);
+        console.error('room:join error', err.message);
         ack?.({ ok: false, error: err.message });
       }
     });
 
-    // ── Start auction (host only) ──────────────────────────────────────────
     socket.on('auction:start', async (_, ack) => {
       const m = meta.get(socket.id);
-      if (!m?.isHost) return ack?.({ ok: false, error: 'Only host can start' });
-
-      const state = Store.get(m.roomCode);
-      if (!state) return ack?.({ ok: false, error: 'No state' });
-
-      const newState = Engine.start(state);
-      Store.set(m.roomCode, newState);
-
-      await Room.findOneAndUpdate({ code: m.roomCode }, { status: 'active' });
-
-      io.to(m.roomCode).emit('auction:started', { state: newState, item: Engine.getCurrentItem(newState) });
-      io.to(m.roomCode).emit('chat:msg', {
-        username: '🔨 Auctioneer', message: `Auction started! Bidding on: ${Engine.getCurrentItem(newState)?.name}`, type: 'system',
-      });
-
-      Timer.start(m.roomCode, newState.settings.timerSeconds, getTimerCallbacks(io, m.roomCode));
-      ack?.({ ok: true });
+      if (!m?.isHost) return ack?.({ ok: false, error: 'Only host' });
+      const result = await GameService.startAuction(m.roomCode, io);
+      ack?.(result);
     });
 
-    // ── Place bid (open — anyone can bid anytime) ──────────────────────────
     socket.on('bid:place', ({ amount }, ack) => {
       const m = meta.get(socket.id);
       if (!m) return ack?.({ ok: false, error: 'Not in room' });
-
-      const state = Store.get(m.roomCode);
-      if (!state) return ack?.({ ok: false, error: 'No active game' });
-
-      const result = Engine.placeBid(state, m.userId, amount);
-      if (!result.success) return ack?.({ ok: false, error: result.reason });
-
-      Store.set(m.roomCode, result.state);
-
-      // Broadcast new bid to all
-      io.to(m.roomCode).emit('bid:new', {
-        username: m.username,
-        amount,
-        state: result.state,
-      });
-
-      // Chat notification
-      io.to(m.roomCode).emit('chat:msg', {
-        username: '💰 Bid',
-        message:  `${m.username} bids ₹${amount}L on ${Engine.getCurrentItem(state)?.name}`,
-        type:     'bid',
-      });
-
-      ack?.({ ok: true });
+      const result = GameService.placeBid(m.roomCode, m.userId, m.username, amount, io);
+      ack?.(result);
     });
 
-    // ── Host: close round early (SOLD) ─────────────────────────────────────
-    socket.on('host:sold', (_, ack) => {
+    socket.on('host:sold', async (_, ack) => {
       const m = meta.get(socket.id);
       if (!m?.isHost) return ack?.({ ok: false, error: 'Only host' });
-      closeRound(io, m.roomCode);
+      await GameService.forceSold(m.roomCode, io);
       ack?.({ ok: true });
     });
 
-    // ── Host: mark unsold ─────────────────────────────────────────────────
-    socket.on('host:unsold', (_, ack) => {
+    socket.on('host:unsold', async (_, ack) => {
       const m = meta.get(socket.id);
       if (!m?.isHost) return ack?.({ ok: false, error: 'Only host' });
-
-      Timer.clear(m.roomCode);
-      const state = Store.get(m.roomCode);
-      if (!state) return;
-
-      // Force unsold by clearing bidder
-      const cleared = { ...state, currentBidderId: null, currentBid: 0, currentBidderName: null };
-      Store.set(m.roomCode, cleared);
-      closeRound(io, m.roomCode);
+      await GameService.forceUnsold(m.roomCode, io);
       ack?.({ ok: true });
     });
 
-    // ── Host: next player ──────────────────────────────────────────────────
-    socket.on('host:next', (_, ack) => {
+    socket.on('host:next', async (_, ack) => {
       const m = meta.get(socket.id);
       if (!m?.isHost) return ack?.({ ok: false, error: 'Only host' });
-
-      Timer.clear(m.roomCode);
-      const state = Store.get(m.roomCode);
-      if (!state) return;
-
-      const { state: newState, done } = Engine.nextItem(state);
-      Store.set(m.roomCode, newState);
-
-      if (done) {
-        const leaderboard = Engine.getLeaderboard(newState);
-        io.to(m.roomCode).emit('auction:complete', { leaderboard, state: newState });
-        Room.findOneAndUpdate({ code: m.roomCode }, { status: 'completed' }).catch(() => {});
-      } else {
-        const item = Engine.getCurrentItem(newState);
-        io.to(m.roomCode).emit('item:next', { state: newState, item });
-        io.to(m.roomCode).emit('chat:msg', {
-          username: '🔨 Auctioneer', message: `Now bidding: ${item.name} (Base: ₹${item.basePrice}L)`, type: 'system',
-        });
-        Timer.start(m.roomCode, newState.settings.timerSeconds, getTimerCallbacks(io, m.roomCode));
-      }
-      ack?.({ ok: true });
+      const result = await GameService.nextItem(m.roomCode, io);
+      ack?.(result);
     });
 
-    // ── Host: pause / resume ───────────────────────────────────────────────
     socket.on('host:pause', (_, ack) => {
       const m = meta.get(socket.id);
       if (!m?.isHost) return;
-      Timer.clear(m.roomCode);
-      io.to(m.roomCode).emit('auction:paused');
+      GameService.pause(m.roomCode, io);
       ack?.({ ok: true });
     });
 
     socket.on('host:resume', (_, ack) => {
       const m = meta.get(socket.id);
       if (!m?.isHost) return;
-      const state = Store.get(m.roomCode);
-      if (!state || state.phase !== 'bidding') return;
-      Timer.start(m.roomCode, state.settings.timerSeconds, getTimerCallbacks(io, m.roomCode));
-      io.to(m.roomCode).emit('auction:resumed', { state });
+      GameService.resume(m.roomCode, io);
       ack?.({ ok: true });
     });
 
-    // ── Bid suggestion ─────────────────────────────────────────────────────
     socket.on('bid:suggest', (_, ack) => {
       const m = meta.get(socket.id);
       if (!m) return ack?.({ suggestion: null });
-      const state = Store.get(m.roomCode);
-      ack?.({ suggestion: state ? Engine.suggest(state, m.userId) : null });
+      ack?.({ suggestion: GameService.suggest(m.roomCode, m.userId) });
     });
 
-    // ── Chat ───────────────────────────────────────────────────────────────
+    socket.on('analytics:get', (_, ack) => {
+      const m = meta.get(socket.id);
+      if (!m) return ack?.({ analytics: null });
+      ack?.({ analytics: GameService.getAnalytics(m.roomCode, m.userId) });
+    });
+
     socket.on('chat:send', ({ message }, ack) => {
       const m = meta.get(socket.id);
       if (!m || !message?.trim()) return;
-      const msg = { username: m.username, message: message.trim().slice(0, 300), type: 'user', time: new Date() };
+      const msg = { username: m.username, message: message.trim().slice(0,300), type:'user', time: new Date() };
       io.to(m.roomCode).emit('chat:msg', msg);
-      Room.findOneAndUpdate({ code: m.roomCode }, { $push: { chat: { $each: [msg], $slice: -100 } } }).catch(() => {});
+      Room.findOneAndUpdate({ code: m.roomCode }, { $push: { chat: { $each:[msg], $slice:-100 } } }).catch(()=>{});
       ack?.({ ok: true });
     });
 
-    // ── Disconnect ─────────────────────────────────────────────────────────
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       const m = meta.get(socket.id);
-      if (m) {
-        io.to(m.roomCode).emit('chat:msg', { username: '🏏 System', message: `${m.username} disconnected`, type: 'system' });
-        meta.delete(socket.id);
+      if (!m) return;
+      meta.delete(socket.id);
+
+      try {
+        // Only remove from room if auction hasn't started yet (waiting phase)
+        const state = require('./engine/StateStore').get?.(m.roomCode) ||
+                      require('../engine/StateStore').get?.(m.roomCode);
+        const phase = state?.phase || 'waiting';
+
+        if (phase === 'waiting') {
+          // Remove from DB members list
+          await Room.findOneAndUpdate(
+            { code: m.roomCode },
+            { $pull: { members: { userId: m.userId } } }
+          );
+          // Also remove from in-memory state
+          const Store = require('../engine/StateStore');
+          const st    = Store.get(m.roomCode);
+          if (st) {
+            st.players = st.players.filter(p => p.id !== m.userId);
+            Store.set(m.roomCode, st);
+          }
+          // Get updated room and broadcast
+          const room = await Room.findOne({ code: m.roomCode });
+          if (room) {
+            io.to(m.roomCode).emit('room:updated', { state: Store.get(m.roomCode), members: room.members });
+          }
+          io.to(m.roomCode).emit('chat:msg', { username:'System', message:`${m.username} left the room`, type:'system' });
+        } else {
+          // Auction in progress — just notify, keep them in the list
+          io.to(m.roomCode).emit('chat:msg', { username:'System', message:`${m.username} disconnected`, type:'system' });
+        }
+      } catch(err) {
+        console.error('disconnect error:', err.message);
       }
     });
   });

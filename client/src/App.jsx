@@ -1,10 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { authLogin, authRegister, authMe } from './services';
-import AuthPage    from './pages/AuthPage';
-import LobbyPage   from './pages/LobbyPage';
-import RoomPage    from './pages/RoomPage';
-import AuctionPage from './pages/AuctionPage';
+import AuthPage          from './pages/AuthPage';
+import LobbyPage         from './pages/LobbyPage';
+import RoomPage          from './pages/RoomPage';
+import AuctionPage       from './pages/AuctionPage';
+import TeamStatsPage     from './pages/TeamStatsPage';
+import ReplayPage        from './pages/ReplayPage';
+import FantasyPage        from './pages/FantasyPage';
+import MatchSelectionPage  from './pages/MatchSelectionPage';
+import SeasonDashboard     from './pages/SeasonDashboard';
+import SeasonRoomPage      from './pages/SeasonRoomPage';
 
 // ── Auth Context ─────────────────────────────────────────────────────────────
 const AuthCtx = createContext(null);
@@ -34,9 +40,44 @@ function AuthProvider({ children }) {
     return u;
   }, []);
 
+  const loginWithToken = useCallback((token, userData) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
+  }, []);
+
   const logout = useCallback(() => { localStorage.removeItem('token'); setUser(null); }, []);
 
-  return <AuthCtx.Provider value={{ user, loading, login, register, logout }}>{children}</AuthCtx.Provider>;
+  return <AuthCtx.Provider value={{ user, loading, login, register, logout, loginWithToken }}>{children}</AuthCtx.Provider>;
+}
+
+// ── Google OAuth callback handler ─────────────────────────────────────────────
+function OAuthCallback() {
+  const { loginWithToken } = useAuth();
+  const nav      = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params   = new URLSearchParams(location.search);
+    const token    = params.get('token');
+    const username = params.get('username');
+    const id       = params.get('id');
+    const error    = params.get('error');
+
+    if (error || !token) {
+      nav('/auth?error=google_failed');
+      return;
+    }
+
+    loginWithToken(token, { _id: id, username, email: '' });
+    nav('/');
+  }, []);
+
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, background:'#080b12' }}>
+      <div className="spin" style={{ width:44, height:44, border:'3px solid #252538', borderTopColor:'#f5c842', borderRadius:'50%' }} />
+      <p style={{ color:'rgba(255,255,255,.5)', fontSize:14 }}>Signing you in with Google…</p>
+    </div>
+  );
 }
 
 function Guard({ children }) {
@@ -54,11 +95,18 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/auth"          element={<AuthPage />} />
-          <Route path="/"              element={<Guard><LobbyPage /></Guard>} />
-          <Route path="/room/:code"    element={<Guard><RoomPage /></Guard>} />
-          <Route path="/auction/:code" element={<Guard><AuctionPage /></Guard>} />
-          <Route path="*"              element={<Navigate to="/" replace />} />
+          <Route path="/auth"                    element={<AuthPage />} />
+          <Route path="/auth/callback"           element={<OAuthCallback />} />
+          <Route path="/"                        element={<Guard><LobbyPage /></Guard>} />
+          <Route path="/room/:code"              element={<Guard><RoomPage /></Guard>} />
+          <Route path="/auction/:code"           element={<Guard><AuctionPage /></Guard>} />
+          <Route path="/stats"                   element={<Guard><TeamStatsPage /></Guard>} />
+          <Route path="/replay/:code"            element={<Guard><ReplayPage /></Guard>} />
+          <Route path="/fantasy"                 element={<Guard><FantasyPage /></Guard>} />
+          <Route path="/fantasy/match/:matchId"  element={<Guard><MatchSelectionPage /></Guard>} />
+          <Route path="/fantasy/season/:id"      element={<Guard><SeasonDashboard /></Guard>} />
+          <Route path="/season-room/:code"       element={<Guard><SeasonRoomPage /></Guard>} />
+          <Route path="*"                        element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

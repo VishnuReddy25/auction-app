@@ -3,17 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { getRooms, createRoom } from '../services';
 
+const API = process.env.REACT_APP_API_URL || 'https://auction-app-m9xw.onrender.com/api';
+const api  = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+
 export default function LobbyPage() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
-  const [tab,  setTab]  = useState('join');
-  const [code, setCode] = useState('');
-  const [rooms,setRooms]= useState([]);
-  const [form, setForm] = useState({ name:'', startingBudget:1000, minIncrement:5, timerSeconds:30, maxPlayers:8 });
-  const [busy, setBusy] = useState(false);
-  const [err,  setErr]  = useState('');
+  const [tab,        setTab]        = useState('join');
+  const [code,       setCode]       = useState('');
+  const [rooms,      setRooms]      = useState([]);
+  const [myRooms,    setMyRooms]    = useState([]);
+  const [seasonRooms,setSeasonRooms]= useState([]);
+  const [form,       setForm]       = useState({ name:'', startingBudget:1000, minIncrement:5, timerSeconds:30, maxPlayers:8 });
+  const [busy,       setBusy]       = useState(false);
+  const [err,        setErr]        = useState('');
 
-  useEffect(() => { getRooms().then(d => setRooms(d.rooms||[])).catch(()=>{}); }, []);
+  useEffect(() => {
+    getRooms().then(d => setRooms(d.rooms||[])).catch(()=>{});
+    // Fetch my rooms and season rooms
+    fetch(`${API}/rooms/my`, api()).then(r=>r.json()).then(d => {
+      const all = d.rooms || [];
+      setMyRooms(all.filter(r => r.status !== 'season'));
+      setSeasonRooms(all.filter(r => r.status === 'season'));
+    }).catch(()=>{});
+  }, []);
 
   const joinRoom = e => {
     e.preventDefault();
@@ -30,12 +43,25 @@ export default function LobbyPage() {
     finally { setBusy(false); }
   };
 
+  const deleteRoom = async (code, e) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this room? This cannot be undone.')) return;
+    try {
+      await fetch(`${API}/rooms/${code}`, { method:'DELETE', ...api() });
+      setMyRooms(r => r.filter(room => room.code !== code));
+      setSeasonRooms(r => r.filter(room => room.code !== code));
+    } catch(e) { alert('Failed to delete'); }
+  };
+
   return (
     <div style={s.page}>
       <div style={s.bg} />
       <header style={s.header}>
         <div style={s.logo}>🏏 <span style={s.logoTxt}>BidWar</span></div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <button onClick={() => nav('/fantasy')} className="btn btn-outline btn-sm" style={{ color:'var(--gold)', borderColor:'var(--gold)' }}>
+            🏆 Fantasy
+          </button>
           <span style={{ color:'var(--text2)', fontSize:14 }}>👤 {user?.username}</span>
           <button onClick={logout} className="btn btn-ghost btn-sm">Sign Out</button>
         </div>
@@ -107,6 +133,49 @@ export default function LobbyPage() {
                     ))}
                   </div>
               }
+
+              {/* My rooms with delete option */}
+              {myRooms.length > 0 && (
+                <>
+                  <h2 style={{ ...s.panelTitle, marginTop:24 }}>My Rooms</h2>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10, marginTop:12 }}>
+                    {myRooms.map(r => (
+                      <div key={r._id} style={s.roomRow}>
+                        <div>
+                          <div style={{ fontWeight:600 }}>{r.name}</div>
+                          <div style={{ fontSize:13, color:'var(--text2)' }}>Code: <strong style={{ color:'var(--gold)' }}>{r.code}</strong> · {r.members.length} members</div>
+                        </div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          <button onClick={() => nav(`/room/${r.code}`)} className="btn btn-outline btn-sm">Open</button>
+                          <button onClick={e => deleteRoom(r.code, e)} className="btn btn-ghost btn-sm" style={{ color:'var(--red)' }}>🗑</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* IPL Season Rooms */}
+              {seasonRooms.length > 0 && (
+                <>
+                  <h2 style={{ ...s.panelTitle, marginTop:24 }}>🏆 IPL Season Rooms</h2>
+                  <p style={{ fontSize:13, color:'var(--text2)', marginBottom:12 }}>Auction rooms saved for IPL season scoring</p>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    {seasonRooms.map(r => (
+                      <div key={r._id} style={{ ...s.roomRow, border:'1px solid rgba(245,200,66,.3)', background:'rgba(245,200,66,.04)' }}>
+                        <div>
+                          <div style={{ fontWeight:600 }}>{r.name} <span style={{ fontSize:11, color:'var(--gold)', marginLeft:6 }}>🏏 IPL Season</span></div>
+                          <div style={{ fontSize:13, color:'var(--text2)' }}>Code: <strong style={{ color:'var(--gold)' }}>{r.code}</strong> · {r.members.length} members · {r.fantasyMatches?.length || 0} matches</div>
+                        </div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          <button onClick={() => nav(`/season-room/${r.code}`)} className="btn btn-gold btn-sm">Open</button>
+                          <button onClick={e => deleteRoom(r.code, e)} className="btn btn-ghost btn-sm" style={{ color:'var(--red)' }}>🗑</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
