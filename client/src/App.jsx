@@ -7,9 +7,10 @@ import RoomPage          from './pages/RoomPage';
 import AuctionPage       from './pages/AuctionPage';
 import TeamStatsPage     from './pages/TeamStatsPage';
 import ReplayPage        from './pages/ReplayPage';
-import FantasyPage       from './pages/FantasyPage';
-import MatchSelectionPage from './pages/MatchSelectionPage';
-import SeasonDashboard   from './pages/SeasonDashboard';
+import FantasyPage        from './pages/FantasyPage';
+import MatchSelectionPage  from './pages/MatchSelectionPage';
+import SeasonDashboard     from './pages/SeasonDashboard';
+import SeasonRoomPage      from './pages/SeasonRoomPage';
 
 // ── Auth Context ─────────────────────────────────────────────────────────────
 const AuthCtx = createContext(null);
@@ -104,6 +105,7 @@ export default function App() {
           <Route path="/fantasy"                 element={<Guard><FantasyPage /></Guard>} />
           <Route path="/fantasy/match/:matchId"  element={<Guard><MatchSelectionPage /></Guard>} />
           <Route path="/fantasy/season/:id"      element={<Guard><SeasonDashboard /></Guard>} />
+          <Route path="/season-room/:code"       element={<Guard><SeasonRoomPage /></Guard>} />
           <Route path="*"                        element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
